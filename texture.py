@@ -1,12 +1,16 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
+import torch.optim.lr_scheduler as lr_scheduler
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 from PIL import Image
 import torchvision.transforms as transforms
+
+
 
 def read_image_to_tensor(image_path):
     """
@@ -36,49 +40,43 @@ def read_image_to_tensor(image_path):
     return image_tensor
 
 
-class TextureFunction(nn.Module):
 
+class EnhancedTextureFunction(nn.Module):
+    def __init__(self, num_components=10, image_size=(256, 256)):
+        super(EnhancedTextureFunction, self).__init__()
+        self.num_components = num_components
+        self.image_size = image_size
 
+        # Frequencies for sine and cosine components
+        self.frequencies = nn.Parameter(torch.randn(num_components, 2))  # [num_components, 2] for X and Y
 
+        # Amplitudes and phase shifts for components
+        self.amplitudes = nn.Parameter(torch.rand(num_components))  # Amplitude for each component
+        self.phases = nn.Parameter(torch.rand(num_components))  # Phase shift for each component
 
-    def __init__(self):
-        super(TextureFunction, self).__init__()
-        # Initialize parameters
-        self.alpha = nn.Parameter(torch.rand(1)) # Randomly initialized
-        self.beta = nn.Parameter(torch.rand(1))
-        self.gamma = nn.Parameter(torch.rand(1) )
-        self.phi_R = nn.Parameter(torch.rand(1) )
-        self.phi_G = nn.Parameter(torch.rand(1) )
-        self.phi_B = nn.Parameter(torch.rand(1) )
-        self.t = nn.ParameterList([nn.Parameter(torch.rand(1)) for _ in range(3)])
-        self.a_n = nn.ParameterList([nn.Parameter(torch.rand(1)) for _ in range(3)])
-        self.b_n = nn.ParameterList([nn.Parameter(torch.rand(1)) for _ in range(3)])
+        # Overall phase shift for RGB channels to allow color variation
+        self.rgb_phases = nn.Parameter(torch.rand(3))  # [R, G, B]
 
+    def forward(self):
+        H, W = self.image_size
+        grid_y, grid_x = torch.meshgrid(torch.linspace(0, 1, steps=H), torch.linspace(0, 1, steps=W), indexing='ij')
 
+        # Initialize texture as zero
+        texture = torch.zeros(H, W, 3, dtype=torch.float32, device=self.frequencies.device)
 
+        # Add contributions from each component
+        for i in range(self.num_components):
+            for c in range(3):  # RGB channels
+                # Compute spatial frequency component
+                spatial_frequency = (self.frequencies[i, 0] * grid_x + self.frequencies[i, 1] * grid_y)
+                # Sum of sinusoids model
+                texture[:, :, c] += self.amplitudes[i] * torch.sin(2 * np.pi * spatial_frequency + self.phases[i] + self.rgb_phases[c])
 
-    def forward(self, X, Y):
-        # print(self.t.shape)
-        R = self.a_n[0] * torch.sin(self.alpha * X) + self.b_n[0] * torch.cos(self.phi_R * Y) + self.t[0]
-        G = self.a_n[1] * torch.sin(self.beta * X) + self.b_n[1] * torch.cos(self.phi_G * Y) + self.t[1]
-        B = self.a_n[2] * torch.sin(self.gamma * X) + self.b_n[2] * torch.cos(self.phi_B * Y) + self.t[2]
-        RGB = torch.stack([R, G, B], dim=-1)
-        RGB = (RGB - RGB.min()) / (RGB.max() - RGB.min())
-        return RGB
+        # Normalize texture to [0, 1]
+        texture = (texture - texture.min()) / (texture.max() - texture.min())
+        texture = torch.sigmoid(texture)
+        return texture
 
-
-
-class PatternGenerator(nn.Module):
-    def __init__(self):
-        super(PatternGenerator, self).__init__()
-        # Initialize parameters you want to learn
-        self.freq_x = nn.Parameter(torch.tensor(3.0))  # Frequency for the x dimension
-        self.freq_y = nn.Parameter(torch.tensor(3.0))  # Frequency for the y dimension
-
-    def forward(self, X, Y):
-        # Your pattern function adapted for PyTorch and learnable parameters
-        Z = torch.sin(self.freq_x * X) + torch.cos(self.freq_y * Y) + torch.sqrt(X**2 + Y**2)
-        return Z
 
 
 
@@ -89,42 +87,44 @@ if __name__ == "__main__":
 
     target_texture = torch.tensor(target_image, dtype=torch.float32).unsqueeze(0) # Normalize
 
-    y_start, x_start = 200, 500  # Example start position
-    h, w = 5, 5  # Example size of the patch
+    y_start, x_start = 480, 700  # Example start position
+    h, w = 50, 50  # Example size of the patch
 
     # Extract the patch
     target_texture = target_texture[:, :, y_start:y_start+h, x_start:x_start+w]
 
     criterion = nn.MSELoss()
-    model = TextureFunction()
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    model = EnhancedTextureFunction(num_components=10, image_size=(h, w))
+    optimizer = optim.Adam(model.parameters(), lr=0.1)
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
 
     x = torch.linspace(0, np.pi, w, dtype=torch.float32)
     y = torch.linspace(0, np.pi, h, dtype=torch.float32)
     X, Y = torch.meshgrid(x, y)
 
-    initial_output = model(X, Y)
+    initial_output = model()
     print("initial_out", initial_output.shape)
     initial_output = initial_output.permute(2, 0, 1)  # Reorder dimensions to [Channels, Height, Width]
     initial_output = initial_output.unsqueeze(0)  # Add a batch dimension, making it [1, Channels, Height, Width]
 
-    for epoch in range(10000): # Number of epochs
+    for epoch in range(2000): # Number of epochs
         optimizer.zero_grad()
-        output = model(X, Y)
+        output = model()
 
         output = output.permute(2, 0, 1)  # Reorder dimensions to [Channels, Height, Width]
         output = output.unsqueeze(0)  # Add a batch dimension, making it [1, Channels, Height, Width]
-  
+
         # print("shape:", output.shape, target_texture.shape)
         loss = criterion(output, target_texture)
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         if epoch % 100 == 0:
             print(f'Epoch {epoch}, Loss: {loss.item()}')
 
 
-    final_output = model(X, Y)
+    final_output = model()
     final_output = final_output.permute(2, 0, 1)  # Reorder dimensions to [Channels, Height, Width]
     final_output = final_output.unsqueeze(0)  # Add a batch dimension, making it [1, Channels, Height, Width]
 
@@ -162,5 +162,4 @@ if __name__ == "__main__":
     ax[2].axis('off')  # Hide the axes
 
     plt.show()
-
 
