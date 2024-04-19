@@ -150,6 +150,16 @@ class GaussianModel:
         self.percent_dense = training_args.percent_dense
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
         self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
+        # print("scaling", self._scaling.shape)
+
+
+        # print(self._scaling.is_leaf)  # Should return True
+        # self._scaling.requires_grad_(True)  # Enable gradients for all elements
+        # self._scaling[:, 2].detach()  # Disable gradients for the fixed dimension
+
+
+
+
 
         l = [
             {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
@@ -240,6 +250,8 @@ class GaussianModel:
         for idx, attr_name in enumerate(scale_names):
             scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
 
+        # Set the z-axis to a constant
+        scales[:, 2] = -100
         rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
         rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
         rots = np.zeros((xyz.shape[0], len(rot_names)))

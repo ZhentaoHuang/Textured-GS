@@ -22,6 +22,7 @@ from tqdm import tqdm
 from utils.image_utils import psnr
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
+from torchviz import make_dot
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -90,7 +91,21 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         gt_image = viewpoint_cam.original_image.cuda()
         Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
+        
         loss.backward()
+        # params_dict = {id(param): {"label": f"1{name}\n{str(param.size())}\nGrad: {param.requires_grad}"} 
+        #        for name, param in render_pkg["nn"].named_parameters()}
+        # # make_dot(loss, params=dict(render_pkg["nn"].named_parameters())).render("model_graph", format="png")
+        # dot= make_dot(loss, params=dict(render_pkg["nn"].named_parameters()), show_attrs=True, show_saved=True)
+
+        # # for name, param in render_pkg["nn"].named_parameters():
+        # #     print(name, param.size())
+        # # dot = make_dot(image, params=params_dict)
+        # dot.render('model_graph_detailed', format='png')
+
+        # # Print the names and shapes of the parameters
+        # for name, param in render_pkg["nn"].named_parameters():
+        #     print(f"Name: {name}, Shape: {param.size()}, Requires grad: {param.requires_grad}")
 
         iter_end.record()
 
@@ -115,15 +130,24 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
-                if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
-                    size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                    gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
+                # if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                #     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                #     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                 
                 if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                     gaussians.reset_opacity()
 
             # Optimizer step
             if iteration < opt.iterations:
+
+                # Now check if gradients exist and then zero out the specific dimension
+                if gaussians._scaling.grad is not None:
+                    # pass
+                    # print("shape:",  gaussians._scaling.size())
+                    # Z dimension fixed
+                    gaussians._scaling.grad[:, 2] = 0
+                else:
+                    print("Gradients for _scaling are None, which is unexpected.", gaussians._opacity.size())
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
 

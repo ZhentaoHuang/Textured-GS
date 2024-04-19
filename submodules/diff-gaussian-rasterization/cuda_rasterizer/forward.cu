@@ -15,6 +15,39 @@
 #include <cooperative_groups/reduce.h>
 namespace cg = cooperative_groups;
 
+
+// Forward method for converting the input pixel distance from the mean to RGB
+__device__ glm::vec3 computeColorFromD(const float2 d, const float* params=0)
+{
+	// Should be (0,1) for each channel
+	glm::vec3 rgb;
+	float x = d.x;
+	float y = d.y;
+	const int n = 3;
+
+	float freq_x[n] = {0,1,2};
+	float freq_y[n] = {2,5,6};
+	float phase[n] = {1,1,1};
+	float amplitude[n] = {0.5,0.5,0.5};
+
+	rgb.x = 0;
+	rgb.y = 0;
+	rgb.z = 0;
+
+	// for (int i = 0; i < n; i++)
+	// {
+		rgb.x += amplitude[0] * (sin(freq_x[0] * x + freq_y[0] * y + phase[0])) + 0.5;
+		rgb.y += amplitude[1] * (sin(freq_x[1] * x + freq_y[1] * y + phase[1])) + 0.5;
+		rgb.z += amplitude[2] * (sin(freq_x[2] * x + freq_y[2] * y + phase[2])) + 0.5;
+
+	// }
+
+
+	return glm::max(rgb,0.0f);
+}
+
+
+
 // Forward method for converting the input spherical harmonics
 // coefficients of each Gaussian to a simple RGB color.
 __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, bool* clamped)
@@ -350,9 +383,16 @@ renderCUDA(
 				continue;
 			}
 
+			glm::vec3 rgb = computeColorFromD(d);
+
 			// Eq. (3) from 3D Gaussian splatting paper.
-			for (int ch = 0; ch < CHANNELS; ch++)
-				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+			// for (int ch = 0; ch < CHANNELS; ch++)
+				// C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+				
+			C[0] += rgb.x * alpha * T;
+			C[1] += rgb.y * alpha * T;
+			C[2] += rgb.z * alpha * T;
+
 
 			T = test_T;
 

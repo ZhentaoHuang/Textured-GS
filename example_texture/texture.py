@@ -94,7 +94,7 @@ if __name__ == "__main__":
     target_texture = target_texture[:, :, y_start:y_start+h, x_start:x_start+w]
 
     criterion = nn.MSELoss()
-    model = EnhancedTextureFunction(num_components=10, image_size=(h, w))
+    model = EnhancedTextureFunction(num_components=5, image_size=(h, w))
     optimizer = optim.Adam(model.parameters(), lr=0.1)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
 
