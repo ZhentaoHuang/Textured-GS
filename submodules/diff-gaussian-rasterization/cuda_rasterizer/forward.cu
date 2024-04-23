@@ -8,6 +8,8 @@
  *
  * For inquiries contact  george.drettakis@inria.fr
  */
+#include <cuda_runtime.h>
+
 
 #include "forward.h"
 #include "auxiliary.h"
@@ -17,7 +19,7 @@ namespace cg = cooperative_groups;
 
 
 // Forward method for converting the input pixel distance from the mean to RGB
-__device__ glm::vec3 computeColorFromD(const float2 d, const float* params=0)
+__device__ glm::vec3 computeColorFromD(const float2 d, const float* texture)
 {
 	// Should be (0,1) for each channel
 	glm::vec3 rgb;
@@ -25,10 +27,23 @@ __device__ glm::vec3 computeColorFromD(const float2 d, const float* params=0)
 	float y = d.y;
 	const int n = 3;
 
-	float freq_x[n] = {0,1,2};
-	float freq_y[n] = {2,5,6};
-	float phase[n] = {1,1,1};
-	float amplitude[n] = {0.5,0.5,0.5};
+	//t = [0,1,2,2,5,6,1,1,1,0.5,0.5,0.5]
+	// new t = [[0,1,2],[2,5,6],[1,1,1],[0.5,0.5,0.5]]
+	float freq_x[n] = {texture[0],texture[1],texture[2]};
+	float freq_y[n] = {texture[3],texture[4],texture[5]};
+	float phase[n] = {texture[6],texture[7],texture[8]};
+	float amplitude[n] = {texture[9],texture[10],texture[11]};
+	// for (int i = 0; i < 12; i++)
+	// {
+	// 	printf("%f,", texture[i]);
+	// }
+	// // printf("%f,%f", texture[1], texture[2]);
+	// printf("hello\n");
+
+	// float freq_x[n] = {0,1,2};
+	// float freq_y[n] = {2,5,6};
+	// float phase[n] = {1,1,1};
+	// float amplitude[n] = {0.5,0.5,0.5};
 
 	rgb.x = 0;
 	rgb.y = 0;
@@ -299,6 +314,7 @@ renderCUDA(
 	int W, int H,
 	const float2* __restrict__ points_xy_image,
 	const float* __restrict__ features,
+	const float* __restrict__ texture,
 	const float4* __restrict__ conic_opacity,
 	float* __restrict__ final_T,
 	uint32_t* __restrict__ n_contrib,
@@ -383,7 +399,7 @@ renderCUDA(
 				continue;
 			}
 
-			glm::vec3 rgb = computeColorFromD(d);
+			glm::vec3 rgb = computeColorFromD(d, texture);
 
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
@@ -420,23 +436,34 @@ void FORWARD::render(
 	int W, int H,
 	const float2* means2D,
 	const float* colors,
+	const float* texture,
 	const float4* conic_opacity,
 	float* final_T,
 	uint32_t* n_contrib,
 	const float* bg_color,
 	float* out_color)
 {
+	// for (int i = 0; i < 12; i++)
+	// {
+	// 	printf("%f,", texture[i]);
+	// }
 	renderCUDA<NUM_CHANNELS> << <grid, block >> > (
 		ranges,
 		point_list,
 		W, H,
 		means2D,
 		colors,
+		texture,
 		conic_opacity,
 		final_T,
 		n_contrib,
 		bg_color,
 		out_color);
+			cudaError_t error = cudaGetLastError();
+	if (error != cudaSuccess) {
+		printf("CUDA error: %s\n", cudaGetErrorString(error));
+	}
+
 }
 
 void FORWARD::preprocess(int P, int D, int M,

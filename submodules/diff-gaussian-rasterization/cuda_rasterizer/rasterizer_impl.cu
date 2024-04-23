@@ -210,6 +210,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float scale_modifier,
 	const float* rotations,
 	const float* cov3D_precomp,
+	const float* texture,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* cam_pos,
@@ -219,6 +220,14 @@ int CudaRasterizer::Rasterizer::forward(
 	int* radii,
 	bool debug)
 {
+	// size_t sizetext = sizeof(texture) / sizeof(texture[0]);
+	// printf("sizetext: %lu.", sizetext);
+	// for (int i = 0; i < 12; i++)
+	// {
+	// 	printf("%f,", texture[i]);
+	// }
+	// printf("%f,%f", texture[1], texture[2]);
+	// printf("hello\n");
 	const float focal_y = height / (2.0f * tan_fovy);
 	const float focal_x = width / (2.0f * tan_fovx);
 
@@ -326,6 +335,7 @@ int CudaRasterizer::Rasterizer::forward(
 		width, height,
 		geomState.means2D,
 		feature_ptr,
+		texture,
 		geomState.conic_opacity,
 		imgState.accum_alpha,
 		imgState.n_contrib,

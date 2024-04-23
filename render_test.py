@@ -43,115 +43,22 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
         print(gaussians._opacity.shape)
         # exit(0)
         scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False)
-        print(gaussians._opacity.shape)
+        print(gaussians._texture.shape)
         bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
-
-
-        ############
-        # gaussians._scaling = gaussians._scaling - 0.693
-        scales = gaussians.get_scaling.cpu()
-        # scales = torch.randn(5,3)
-        sorted_scales, indices = torch.sort(scales, dim=1, descending=True)
-        # sorted_scales = scales
-        x_scales = sorted_scales[:, 0]
-        y_scales = sorted_scales[:, 1]
-        z_scales = sorted_scales[:, 2]
-        w_scales = x_scales / z_scales
-        h_scales = x_scales / y_scales
         
-        # Compute statistics
-        x_mean, y_mean, z_mean, w_mean = x_scales.mean(), y_scales.mean(), z_scales.mean(), w_scales.mean()
-        x_std, y_std, z_std, w_std = x_scales.std(), y_scales.std(), z_scales.std(), w_scales.std()
-        x_median, y_median, z_median, w_median = x_scales.median(), y_scales.median(), z_scales.median(), w_scales.median()
+        t = [[0,1,2],[2,5,6],[1,1,1],[0.5,0.5,0.5]]
+        # t = [[0,2,1,0.5],[1,5,1,0.5],[2,6,1,0.5]]
+        # Repeat the array to form a matrix of shape (100, 12)
+        import numpy as np
+        tensor_np = np.tile(t, (gaussians._opacity.shape[0], 1, 1))
+        print("np", tensor_np.shape, gaussians._features_rest.shape)
+        # Convert the numpy array to a PyTorch tensor
+        gaussians._texture = torch.tensor(tensor_np, device="cuda")
 
-        # Compute min and max for each axis
-        x_min, x_max = x_scales.min(), x_scales.max()
-        y_min, y_max = y_scales.min(), y_scales.max()
-        z_min, z_max = z_scales.min(), z_scales.max()
-        w_min, w_max = w_scales.min(), w_scales.max()
-
-        # Print min and max values
-        print(f"X Scale: Min = {x_min}, Max = {x_max}")
-        print(f"Y Scale: Min = {y_min}, Max = {y_max}")
-        print(f"Z Scale: Min = {z_min}, Max = {z_max}")
-        print(f"W Scale: Min = {w_min}, Max = {w_max}")
-
-        print(f"Means: X={x_mean}, Y={y_mean}, Z={z_mean}, W={w_mean}")
-        print(f"Standard Deviations: X={x_std}, Y={y_std}, Z={z_std}, W={w_std}")
-        print(f"Medians: X={x_median}, Y={y_median}, Z={z_median}, W={w_median}")
-
-
-
-
-        thresholds = [2, 10, 50, 100, 1000]
-
-        # Calculate the total number of values in w_scales
-        total_values = w_scales.numel()
-
-        percentages_w, percentages_h = [],[]
-
-        for threshold in thresholds:
-            # Count the number of values above the current threshold
-            above_threshold = torch.sum(w_scales > threshold)
-            above_threshold_h = torch.sum(h_scales > threshold)
-
-            # Calculate the percentage of values above the current threshold
-            percentage_above_threshold = (above_threshold.float() / total_values) * 100
-            percentages_w.append(percentage_above_threshold)
-            print(f"Percentage of w_scales values above {threshold}: {percentage_above_threshold:.2f}%")
-
-            percentage_above_threshold = (above_threshold_h.float() / total_values) * 100
-            percentages_h.append(percentage_above_threshold)
-            print(f"Percentage of h_scales values above {threshold}: {percentage_above_threshold:.2f}%")
-
-
-
-
-
-        import matplotlib.pyplot as plt
-
-        # Define a helper function to add labels on top of each bar
-        def add_labels(ax, bars, percentages):
-            for bar, percentage in zip(bars, percentages):
-                height = bar.get_height()
-                ax.annotate(f'{percentage:.2f}%',
-                            xy=(bar.get_x() + bar.get_width() / 2, height),
-                            xytext=(0, 3),  # 3 points vertical offset
-                            textcoords="offset points",
-                            ha='center', va='bottom')
-
-
-
-       # Creating a figure with 2 subplots (1 row, 2 columns)
-        fig, axs = plt.subplots(1, 2, figsize=(12, 6))
-
-        # Convert thresholds to string labels for plotting in the first subplot
-        threshold_labels = [f">{threshold}" for threshold in thresholds]
-
-        
-        # Subplot 1: Bar chart of percentages above thresholds for h_scales
-        bars_h = axs[0].bar(threshold_labels, percentages_h, color='skyblue')
-        axs[0].set_xlabel('Thresholds')
-        axs[0].set_ylabel('Percentage Above Threshold')
-        axs[0].set_title('x/y: % Above Thresholds')
-        add_labels(axs[0], bars_h, percentages_h)
-
-        # Subplot 2: Bar chart of percentages above thresholds for w_scales
-        bars_w = axs[1].bar(threshold_labels, percentages_w, color='orange')
-        axs[1].set_xlabel('Thresholds')
-        axs[1].set_ylabel('Percentage Above Threshold')
-        axs[1].set_title('x/z: % Above Thresholds')
-        add_labels(axs[1], bars_w, percentages_w)
-
-        # Adjust layout for better spacing
-        plt.tight_layout()
-        plt.savefig('h_w_scales_distribution.png', dpi=300, bbox_inches='tight')
-        plt.show()
-  
-        ## Save the target point cloud
-        # point_cloud_path = os.path.join(args.model_path, "point_cloud/iteration_{}".format(50000))
-        # gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
+        # Save the target point cloud
+        point_cloud_path = os.path.join(args.model_path, "point_cloud/iteration_{}".format(50000))
+        gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))
 
 
 

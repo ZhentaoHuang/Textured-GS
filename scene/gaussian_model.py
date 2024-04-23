@@ -50,6 +50,7 @@ class GaussianModel:
         self._scaling = torch.empty(0)
         self._rotation = torch.empty(0)
         self._opacity = torch.empty(0)
+        self._texture = torch.empty(0)  # Texture params
         self.max_radii2D = torch.empty(0)
         self.xyz_gradient_accum = torch.empty(0)
         self.denom = torch.empty(0)
@@ -113,6 +114,10 @@ class GaussianModel:
     @property
     def get_opacity(self):
         return self.opacity_activation(self._opacity)
+    
+    @property
+    def get_texture(self):
+        return self._texture
     
     def get_covariance(self, scaling_modifier = 1):
         return self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
@@ -196,23 +201,26 @@ class GaussianModel:
             l.append('scale_{}'.format(i))
         for i in range(self._rotation.shape[1]):
             l.append('rot_{}'.format(i))
+        for i in range(self._texture.shape[1]*self._texture.shape[2]):
+            l.append('text_{}'.format(i))
         return l
 
     def save_ply(self, path):
         mkdir_p(os.path.dirname(path))
 
         xyz = self._xyz.detach().cpu().numpy()
-        normals = np.zeros_like(xyz)
+        normals = np.zeros_like(xyz) # No normals
         f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
         f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
         opacities = self._opacity.detach().cpu().numpy()
         scale = self._scaling.detach().cpu().numpy()
         rotation = self._rotation.detach().cpu().numpy()
+        texture = self._texture.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
-
+        print("dtype", dtype_full)
         elements = np.empty(xyz.shape[0], dtype=dtype_full)
-        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
+        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation, texture), axis=1)
         elements[:] = list(map(tuple, attributes))
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
@@ -244,6 +252,17 @@ class GaussianModel:
         # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
         features_extra = features_extra.reshape((features_extra.shape[0], 3, (self.max_sh_degree + 1) ** 2 - 1))
 
+
+        text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
+        text_names = sorted(text_names, key = lambda x: int(x.split('_')[-1]))
+        # assert len(text_names)==3*(self.max_sh_degree + 1) ** 2 - 3
+        assert len(text_names)==12
+
+        texture = np.zeros((xyz.shape[0], len(text_names)))
+        for idx, attr_name in enumerate(text_names):
+            texture[:, idx] = np.asarray(plydata.elements[0][attr_name])
+        texture = texture.reshape((texture.shape[0], 3, 4))
+
         scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
         scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
         scales = np.zeros((xyz.shape[0], len(scale_names)))
@@ -264,7 +283,7 @@ class GaussianModel:
         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
-
+        self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
         self.active_sh_degree = self.max_sh_degree
 
     def replace_tensor_to_optimizer(self, tensor, name):

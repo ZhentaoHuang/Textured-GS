@@ -27,6 +27,7 @@ def rasterize_gaussians(
     scales,
     rotations,
     cov3Ds_precomp,
+    texture,
     raster_settings,
 ):
     return _RasterizeGaussians.apply(
@@ -38,6 +39,7 @@ def rasterize_gaussians(
         scales,
         rotations,
         cov3Ds_precomp,
+        texture,
         raster_settings,
     )
 
@@ -53,6 +55,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         scales,
         rotations,
         cov3Ds_precomp,
+        texture,
         raster_settings,
     ):
 
@@ -66,6 +69,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             rotations,
             raster_settings.scale_modifier,
             cov3Ds_precomp,
+            texture,
             raster_settings.viewmatrix,
             raster_settings.projmatrix,
             raster_settings.tanfovx,
@@ -184,7 +188,7 @@ class GaussianRasterizer(nn.Module):
             
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None):
         
         raster_settings = self.raster_settings
 
@@ -216,6 +220,7 @@ class GaussianRasterizer(nn.Module):
             scales, 
             rotations,
             cov3D_precomp,
-            raster_settings, 
+            texture,
+            raster_settings
         )
 
