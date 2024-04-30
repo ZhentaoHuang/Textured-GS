@@ -15,6 +15,224 @@
 #include <cooperative_groups/reduce.h>
 namespace cg = cooperative_groups;
 
+
+
+// __device__ void computeColorFromD(int idx, const float2 d, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
+// {
+// 	int max_coeffs = idx / 27;
+
+// 	// TODO 3* max?????
+// 	dL_dcolor.x *= clamped[max_coeffs + 0] ? 0 : 1;
+// 	dL_dcolor.y *= clamped[max_coeffs + 1] ? 0 : 1;
+// 	dL_dcolor.z *= clamped[max_coeffs + 2] ? 0 : 1;
+// 	// float* texture = textures[idx];
+// 	// glm::vec3* texture = texture + idx * max_coeffs;
+
+// 	// Target location
+// 	// glm::vec3* dL_dtext_1 = dL_dtext + idx * max_coeffs;
+
+// 	// float freq_x[n] = {texture[idx],texture[idx+1],texture[idx+2]};
+// 	// float freq_y[n] = {texture[idx+3],texture[idx+4],texture[idx+5]};
+// 	// float phase[n] = {texture[idx+6],texture[idx+7],texture[idx+8]};
+// 	// float amplitude[n] = {texture[idx+9],texture[idx+10],texture[idx+11]};
+// 	// Compute gradients for each parameter
+//     // for (int i = 0; i < n; i++)
+//     // {
+//     //     float common_factor = gradOutput[i] * amplitude[i] * cos(freq_x[i] * x + freq_y[i] * y + phase[i]);
+//     //     grad_freq_x[i] = common_factor * x;
+//     //     grad_freq_y[i] = common_factor * y;
+//     //     grad_phase[i] = common_factor;
+//     //     grad_amplitude[i] = sin(freq_x[i] * x + freq_y[i] * y + phase[i]);
+//     // }
+// 	float3 common_factor;
+// 	float3 common_factor_1;
+// 	// float common_factor = gradOutput[i] * amplitude[i] * cos(freq_x[i] * x + freq_y[i] * y + phase[i]);
+// 	common_factor.x = dL_dcolor.x * texture[idx+9] * cos(texture[idx] * d.x + texture[idx+3] * d.y + texture[idx+6]);
+// 	common_factor.y = dL_dcolor.y * texture[idx+10] * cos(texture[idx+1] * d.x + texture[idx+4] * d.y + texture[idx+7]);
+// 	common_factor.z = dL_dcolor.z * texture[idx+11] * cos(texture[idx+2] * d.x + texture[idx+5] * d.y + texture[idx+8]);
+
+// 	common_factor_1.x = dL_dcolor.x * texture[idx+24] * cos(texture[idx+15] * d.x + texture[idx+18] * d.y + texture[idx+21]);
+// 	common_factor_1.y = dL_dcolor.y * texture[idx+25] * cos(texture[idx+16] * d.x + texture[idx+19] * d.y + texture[idx+22]);
+// 	common_factor_1.z = dL_dcolor.z * texture[idx+26] * cos(texture[idx+17] * d.x + texture[idx+20] * d.y + texture[idx+23]);
+
+// 	// grad_freq_x[i] = common_factor * x;     
+// 	dL_dtext[idx] += 0.1* common_factor.x * d.x;
+// 	dL_dtext[idx+1] += 0.1* common_factor.y * d.x;
+// 	dL_dtext[idx+2] += 0.1* common_factor.z * d.x;
+// 	dL_dtext[idx+15] += 0.1* common_factor_1.x * d.x;
+// 	dL_dtext[idx+16] += 0.1* common_factor_1.y * d.x;
+// 	dL_dtext[idx+17] += 0.1* common_factor_1.z * d.x;
+// 	// grad_freq_y[i] = common_factor * y;
+// 	dL_dtext[idx+4] += 0.1*common_factor.y * d.y;
+// 	dL_dtext[idx+3] += 0.1*common_factor.x * d.y;
+// 	dL_dtext[idx+5] += 0.1*common_factor.z * d.y;
+// 	dL_dtext[idx+18] += 0.1*common_factor_1.x * d.y;
+// 	dL_dtext[idx+19] += 0.1*common_factor_1.y * d.y;
+// 	dL_dtext[idx+20] += 0.1*common_factor_1.z * d.y;
+// 	// grad_phase[i] = common_factor;
+// 	dL_dtext[idx+6] += 0.1*common_factor.x;
+// 	dL_dtext[idx+7] += 0.1*common_factor.y;
+// 	dL_dtext[idx+8] += 0.1*common_factor.z;
+// 	dL_dtext[idx+21] += 0.1*common_factor_1.x;
+// 	dL_dtext[idx+22] += 0.1*common_factor_1.y;
+// 	dL_dtext[idx+23] += 0.1*common_factor_1.z;
+// 	// grad_amplitude[i] = sin(freq_x[i] * x + freq_y[i] * y + phase[i]
+// 	dL_dtext[idx+9] += 0.1*sin(texture[idx] * d.x + texture[idx+3] * d.y + texture[idx+6]);
+// 	dL_dtext[idx+10] += 0.1*sin(texture[idx+1] * d.x + texture[idx+4] * d.y + texture[idx+7]);
+// 	dL_dtext[idx+11] += 0.1*sin(texture[idx+2] * d.x + texture[idx+5] * d.y + texture[idx+8]);
+// 	dL_dtext[idx+24] += 0.1*sin(texture[idx+15] * d.x + texture[idx+18] * d.y + texture[idx+21]);
+// 	dL_dtext[idx+25] += 0.1*sin(texture[idx+16] * d.x + texture[idx+19] * d.y + texture[idx+22]);
+// 	dL_dtext[idx+26] += 0.1*sin(texture[idx+17] * d.x + texture[idx+20] * d.y + texture[idx+23]);
+
+// 	dL_dtext[idx+12] += 0.1*dL_dcolor.x;
+// 	dL_dtext[idx+13] += 0.1*dL_dcolor.y;
+// 	dL_dtext[idx+14] += 0.1*dL_dcolor.z;
+
+
+
+
+// } 
+
+
+
+__device__ void computeColorFromD(int idx, const float2 d, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
+{
+	int max_coeffs = idx / 27;
+	int deg = 2;
+	
+	glm::vec3 dL_dRGB = dL_dcolor;
+
+	dL_dRGB.x *= clamped[3*max_coeffs + 0] ? 0 : 1;
+	dL_dRGB.y *= clamped[3*max_coeffs + 1] ? 0 : 1;
+	dL_dRGB.z *= clamped[3*max_coeffs + 2] ? 0 : 1;
+
+	// float x, y, z;
+	// float length = sqrt(d.x * d.x + d.y * d.y);
+	// if (length != 0.0f) {
+	// 	x = d.x / length;
+	// 	y = d.y / length;
+	// 	z = sqrt(max(0.0f, 1 - x*x - y*y));
+	// } else {
+	// 	// Handle the zero-length case, perhaps default to z-axis.
+	// 	x = 0.0f;
+	// 	y = 0.0f;
+	// 	z = 1.0f;
+	// }
+
+	float z = sqrt(d.x * d.x + d.y * d.y);
+	float length = sqrt(z*z + d.x * d.x + d.y * d.y);
+	
+	float x, y;
+	if (length != 0.0f) {
+		x = d.x / length;
+		y = d.y / length;
+		z = z / length;
+	} else {
+		// Handle the zero-length case, perhaps default to z-axis.
+		x = 0.0f;
+		y = 0.0f;
+		z = 1.0f;
+	}
+
+
+	glm::vec3 dL_dsh[9];
+
+
+	dL_dsh[0] = SH_C0 * dL_dRGB;
+
+	if (deg > 0)
+	{
+		float dRGBdsh1 = -SH_C1 * y;
+		float dRGBdsh2 = SH_C1 * z;
+		float dRGBdsh3 = -SH_C1 * x;
+		dL_dsh[1] = dRGBdsh1 * dL_dRGB;
+		dL_dsh[2] = dRGBdsh2 * dL_dRGB;
+		dL_dsh[3] = dRGBdsh3 * dL_dRGB;
+
+		// dRGBdx = -SH_C1 * sh[3];
+		// dRGBdy = -SH_C1 * sh[1];
+		// dRGBdz = SH_C1 * sh[2];
+
+		if (deg > 1)
+		{
+			float xx = x * x, yy = y * y, zz = z * z;
+			float xy = x * y, yz = y * z, xz = x * z;
+
+			float dRGBdsh4 = SH_C2[0] * xy;
+			float dRGBdsh5 = SH_C2[1] * yz;
+			float dRGBdsh6 = SH_C2[2] * (2.f * zz - xx - yy);
+			float dRGBdsh7 = SH_C2[3] * xz;
+			float dRGBdsh8 = SH_C2[4] * (xx - yy);
+			dL_dsh[4] = dRGBdsh4 * dL_dRGB;
+			dL_dsh[5] = dRGBdsh5 * dL_dRGB;
+			dL_dsh[6] = dRGBdsh6 * dL_dRGB;
+			dL_dsh[7] = dRGBdsh7 * dL_dRGB;
+			dL_dsh[8] = dRGBdsh8 * dL_dRGB;
+
+			// dRGBdx += SH_C2[0] * y * sh[4] + SH_C2[2] * 2.f * -x * sh[6] + SH_C2[3] * z * sh[7] + SH_C2[4] * 2.f * x * sh[8];
+			// dRGBdy += SH_C2[0] * x * sh[4] + SH_C2[1] * z * sh[5] + SH_C2[2] * 2.f * -y * sh[6] + SH_C2[4] * 2.f * -y * sh[8];
+			// dRGBdz += SH_C2[1] * y * sh[5] + SH_C2[2] * 2.f * 2.f * z * sh[6] + SH_C2[3] * x * sh[7];
+
+			if (deg > 2)
+			{
+				float dRGBdsh9 = SH_C3[0] * y * (3.f * xx - yy);
+				float dRGBdsh10 = SH_C3[1] * xy * z;
+				float dRGBdsh11 = SH_C3[2] * y * (4.f * zz - xx - yy);
+				float dRGBdsh12 = SH_C3[3] * z * (2.f * zz - 3.f * xx - 3.f * yy);
+				float dRGBdsh13 = SH_C3[4] * x * (4.f * zz - xx - yy);
+				float dRGBdsh14 = SH_C3[5] * z * (xx - yy);
+				float dRGBdsh15 = SH_C3[6] * x * (xx - 3.f * yy);
+				dL_dsh[9] = dRGBdsh9 * dL_dRGB;
+				dL_dsh[10] = dRGBdsh10 * dL_dRGB;
+				dL_dsh[11] = dRGBdsh11 * dL_dRGB;
+				dL_dsh[12] = dRGBdsh12 * dL_dRGB;
+				dL_dsh[13] = dRGBdsh13 * dL_dRGB;
+				dL_dsh[14] = dRGBdsh14 * dL_dRGB;
+				dL_dsh[15] = dRGBdsh15 * dL_dRGB;
+
+				// dRGBdx += (
+				// 	SH_C3[0] * sh[9] * 3.f * 2.f * xy +
+				// 	SH_C3[1] * sh[10] * yz +
+				// 	SH_C3[2] * sh[11] * -2.f * xy +
+				// 	SH_C3[3] * sh[12] * -3.f * 2.f * xz +
+				// 	SH_C3[4] * sh[13] * (-3.f * xx + 4.f * zz - yy) +
+				// 	SH_C3[5] * sh[14] * 2.f * xz +
+				// 	SH_C3[6] * sh[15] * 3.f * (xx - yy));
+
+				// dRGBdy += (
+				// 	SH_C3[0] * sh[9] * 3.f * (xx - yy) +
+				// 	SH_C3[1] * sh[10] * xz +
+				// 	SH_C3[2] * sh[11] * (-3.f * yy + 4.f * zz - xx) +
+				// 	SH_C3[3] * sh[12] * -3.f * 2.f * yz +
+				// 	SH_C3[4] * sh[13] * -2.f * xy +
+				// 	SH_C3[5] * sh[14] * -2.f * yz +
+				// 	SH_C3[6] * sh[15] * -3.f * 2.f * xy);
+
+				// dRGBdz += (
+				// 	SH_C3[1] * sh[10] * xy +
+				// 	SH_C3[2] * sh[11] * 4.f * 2.f * yz +
+				// 	SH_C3[3] * sh[12] * 3.f * (2.f * zz - xx - yy) +
+				// 	SH_C3[4] * sh[13] * 4.f * 2.f * xz +
+				// 	SH_C3[5] * sh[14] * (xx - yy));
+			}
+		}
+	}
+
+	for (int i = 0; i < 9; i++)
+	{
+
+		dL_dtext[idx + 3*i] = dL_dsh[i].x;
+		dL_dtext[idx + 3*i + 1] = dL_dsh[i].y;
+		dL_dtext[idx + 3*i + 2] = dL_dsh[i].z;
+
+	}
+
+
+
+
+}
+
+
 // Backward pass for conversion of spherical harmonics to RGB for
 // each Gaussian.
 __device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::vec3* means, glm::vec3 campos, const float* shs, const bool* clamped, const glm::vec3* dL_dcolor, glm::vec3* dL_dmeans, glm::vec3* dL_dshs)
@@ -406,13 +624,16 @@ renderCUDA(
 	const float2* __restrict__ points_xy_image,
 	const float4* __restrict__ conic_opacity,
 	const float* __restrict__ colors,
+	const float* __restrict__ texture,
 	const float* __restrict__ final_Ts,
 	const uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ dL_dpixels,
 	float3* __restrict__ dL_dmean2D,
 	float4* __restrict__ dL_dconic2D,
 	float* __restrict__ dL_dopacity,
-	float* __restrict__ dL_dcolors)
+	float* __restrict__ dL_dcolors,
+	float* __restrict__ dL_dtext,
+	const bool* clamped)
 {
 	// We rasterize again. Compute necessary block info.
 	auto block = cg::this_thread_block();
@@ -509,6 +730,7 @@ renderCUDA(
 			// pair).
 			float dL_dalpha = 0.0f;
 			const int global_id = collected_id[j];
+			glm::vec3 tmp;
 			for (int ch = 0; ch < C; ch++)
 			{
 				const float c = collected_colors[ch * BLOCK_SIZE + j];
@@ -522,7 +744,24 @@ renderCUDA(
 				// Atomic, since this pixel is just one of potentially
 				// many that were affected by this Gaussian.
 				atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
+				if(ch == 0)
+				{
+					tmp.x = dchannel_dcolor * dL_dchannel;
+				}
+				else if (ch == 1)
+				{
+					tmp.y = dchannel_dcolor * dL_dchannel;
+				}
+				else
+				{
+					tmp.z = dchannel_dcolor * dL_dchannel;
+				}
+				
+				
 			}
+			computeColorFromD(global_id * 27, d, texture, tmp, dL_dtext, clamped);
+			// the gradients are needed for every pixel of the Gaussian
+			// computeColorFromD(int idx, const float* textures, dchannel_dcolor * dL_dchannel, glm::vec3* dL_dtext);
 			dL_dalpha *= T;
 			// Update last alpha (to be used in the next iteration)
 			last_alpha = alpha;
@@ -631,13 +870,16 @@ void BACKWARD::render(
 	const float2* means2D,
 	const float4* conic_opacity,
 	const float* colors,
+	const float* texture,
 	const float* final_Ts,
 	const uint32_t* n_contrib,
 	const float* dL_dpixels,
 	float3* dL_dmean2D,
 	float4* dL_dconic2D,
 	float* dL_dopacity,
-	float* dL_dcolors)
+	float* dL_dcolors,
+	float* dL_dtext,
+	const bool* clamped)
 {
 	renderCUDA<NUM_CHANNELS> << <grid, block >> >(
 		ranges,
@@ -647,12 +889,15 @@ void BACKWARD::render(
 		means2D,
 		conic_opacity,
 		colors,
+		texture,
 		final_Ts,
 		n_contrib,
 		dL_dpixels,
 		dL_dmean2D,
 		dL_dconic2D,
 		dL_dopacity,
-		dL_dcolors
+		dL_dcolors,
+		dL_dtext,
+		clamped
 		);
 }

@@ -44,6 +44,7 @@ namespace CudaRasterizer
 			const float* rotations,
 			const float* cov3D_precomp,
 			const float* texture,
+			float* pixel_count,
 			const float* viewmatrix,
 			const float* projmatrix,
 			const float* cam_pos,
@@ -64,6 +65,7 @@ namespace CudaRasterizer
 			const float scale_modifier,
 			const float* rotations,
 			const float* cov3D_precomp,
+			const float* texture,
 			const float* viewmatrix,
 			const float* projmatrix,
 			const float* campos,
@@ -82,6 +84,7 @@ namespace CudaRasterizer
 			float* dL_dsh,
 			float* dL_dscale,
 			float* dL_drot,
+			float* dL_dtext,
 			bool debug);
 	};
 };

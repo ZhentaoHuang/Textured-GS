@@ -18,47 +18,151 @@
 namespace cg = cooperative_groups;
 
 
-// Forward method for converting the input pixel distance from the mean to RGB
-__device__ glm::vec3 computeColorFromD(const float2 d, const float* texture)
+// // Forward method for converting the input pixel distance from the mean to RGB
+// __device__ glm::vec3 computeColorFromD(int idx, const float2 d, const float* texture, bool* clamped)
+// {
+// 	// Should be (0,1) for each channel
+// 	glm::vec3 rgb;
+// 	float x = d.x;
+// 	float y = d.y;
+// 	const int n = 3;
+
+// 	//t = [0,1,2,2,5,6,1,1,1,0.5,0.5,0.5]
+// 	// new t = [[0,1,2],[2,5,6],[1,1,1],[0.5,0.5,0.5]]
+// 	float freq_x[n] = {texture[idx],texture[idx+1],texture[idx+2]};
+// 	float freq_y[n] = {texture[idx+3],texture[idx+4],texture[idx+5]};
+// 	float phase[n] = {texture[idx+6],texture[idx+7],texture[idx+8]};
+// 	float amplitude[n] = {texture[idx+9],texture[idx+10],texture[idx+11]};
+// 	float rgb_phase[n] = {texture[idx+12], texture[idx+13], texture[idx+14]};
+
+// 	float freq_x_1[] = {texture[idx+15],texture[idx+16],texture[idx+17]};
+// 	float freq_y_1[] = {texture[idx+18],texture[idx+19],texture[idx+20]};
+// 	float phase_1[] = {texture[idx+21],texture[idx+22],texture[idx+23]};
+// 	float amplitude_1[] = {texture[idx+24],texture[idx+25],texture[idx+26]};
+
+// 	rgb.x = 0;
+// 	rgb.y = 0;
+// 	rgb.z = 0;
+
+// 	// for (int i = 0; i < n; i++)
+// 	// {
+// 		rgb.x += amplitude[0] * (sin(freq_x[0] * x + freq_y[0] * y + phase[0])) + rgb_phase[0];
+// 		rgb.y += amplitude[1] * (sin(freq_x[1] * x + freq_y[1] * y + phase[1])) + rgb_phase[1];
+// 		rgb.z += amplitude[2] * (sin(freq_x[2] * x + freq_y[2] * y + phase[2])) + rgb_phase[2];
+
+// 		rgb.x += amplitude_1[0] * (sin(freq_x_1[0] * x + freq_y_1[0] * y + phase_1[0]));
+// 		rgb.y += amplitude_1[1] * (sin(freq_x_1[1] * x + freq_y_1[1] * y + phase_1[1]));
+// 		rgb.z += amplitude_1[2] * (sin(freq_x_1[2] * x + freq_y_1[2] * y + phase_1[2]));
+// 	// }
+
+// 	rgb += 0.5f;
+// 	// }
+
+// 	//	# Normalize texture to [0, 1]
+// 	// texture = (texture - texture.min()) / (texture.max() - texture.min())
+// 	// texture = torch.sigmoid(texture)
+// 		// RGB colors are clamped to positive values. If values are
+// 	// clamped, we need to keep track of this for the backward pass.
+// 	if (rgb.x < 0 )
+// 		clamped[3 * (idx/27) + 0] = true;
+// 	if (rgb.y < 0 )
+// 		clamped[3 * (idx/27) + 1] = true;
+// 	if (rgb.z < 0 )
+// 		clamped[3 * (idx/27) + 2] = true;
+// 	// clamped[3 * (idx/15) + 0] = (rgb.x < 0);
+// 	// clamped[3 * (idx/15) + 1] = (rgb.y < 0);
+// 	// clamped[3 * (idx/15) + 2] = (rgb.z < 0);
+
+// 	rgb = glm::min(rgb, 0.999f);
+// 	return glm::max(rgb,0.0f);
+// }
+
+
+__device__ glm::vec3 computeColorFromD(int idx, const float2 d, const float* texture, bool* clamped)
 {
-	// Should be (0,1) for each channel
-	glm::vec3 rgb;
-	float x = d.x;
-	float y = d.y;
-	const int n = 3;
+	// The first version only using x and y. The second version should convert x,y to phi and theta.
+	// float length = sqrt(d.x * d.x + d.y * d.y);
 
-	//t = [0,1,2,2,5,6,1,1,1,0.5,0.5,0.5]
-	// new t = [[0,1,2],[2,5,6],[1,1,1],[0.5,0.5,0.5]]
-	float freq_x[n] = {texture[0],texture[1],texture[2]};
-	float freq_y[n] = {texture[3],texture[4],texture[5]};
-	float phase[n] = {texture[6],texture[7],texture[8]};
-	float amplitude[n] = {texture[9],texture[10],texture[11]};
-	// for (int i = 0; i < 12; i++)
-	// {
-	// 	printf("%f,", texture[i]);
+	// float x, y, z;
+	// if (length != 0.0f) {
+	// 	x = d.x / length;
+	// 	y = d.y / length;
+	// 	z = sqrt(max(0.0f, 1 - x*x - y*y));
+	// } else {
+	// 	// Handle the zero-length case, perhaps default to z-axis.
+	// 	x = 0.0f;
+	// 	y = 0.0f;
+	// 	z = 1.0f;
 	// }
-	// // printf("%f,%f", texture[1], texture[2]);
-	// printf("hello\n");
+	// The second version use length as z, then normalize.
+	float z = sqrt(d.x * d.x + d.y * d.y);
+	float length = sqrt(z*z + d.x * d.x + d.y * d.y);
+	
+	float x, y;
+	if (length != 0.0f) {
+		x = d.x / length;
+		y = d.y / length;
+		z = z / length;
+	} else {
+		// Handle the zero-length case, perhaps default to z-axis.
+		x = 0.0f;
+		y = 0.0f;
+		z = 1.0f;
+	}
 
-	// float freq_x[n] = {0,1,2};
-	// float freq_y[n] = {2,5,6};
-	// float phase[n] = {1,1,1};
-	// float amplitude[n] = {0.5,0.5,0.5};
+	// float z = 0.0000001f;
+	// printf("x: %f, y: %f, z:%f.", x, y, z);
+	int deg = 2;
+	int max_coeffs = 27;
 
-	rgb.x = 0;
-	rgb.y = 0;
-	rgb.z = 0;
+	// glm::vec3* sh = ((glm::vec3*)texture) + idx;// * max_coeffs;
+	glm::vec3 sh[9];
 
-	// for (int i = 0; i < n; i++)
-	// {
-		rgb.x += amplitude[0] * (sin(freq_x[0] * x + freq_y[0] * y + phase[0])) + 0.5;
-		rgb.y += amplitude[1] * (sin(freq_x[1] * x + freq_y[1] * y + phase[1])) + 0.5;
-		rgb.z += amplitude[2] * (sin(freq_x[2] * x + freq_y[2] * y + phase[2])) + 0.5;
+	for (int i = 0; i < 9; i++)
+	{
+		sh[i].x = texture[idx + 3*i];
+		sh[i].y = texture[idx + 3*i + 1]; 
+		sh[i].z = texture[idx + 3*i + 2];
+	}
 
-	// }
+	glm::vec3 result = SH_C0 * sh[0];
+	
+	result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+	// printf("asd:%f,%f,%f..%f, %f, %f", sh[0].x, sh[0].y, sh[0].z, sh[1].x, sh[1].y, sh[1].z);
+	if (deg > 1)
+	{
+		float xx = x * x, yy = y * y, zz = z * z;
+		float xy = x * y, yz = y * z, xz = x * z;
+		result = result +
+			SH_C2[0] * xy * sh[4] +
+			SH_C2[1] * yz * sh[5] +
+			SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
+			SH_C2[3] * xz * sh[7] +
+			SH_C2[4] * (xx - yy) * sh[8];
+
+		// if (deg > 2)
+		// {
+		// 	result = result +
+		// 		SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
+		// 		SH_C3[1] * xy * z * sh[10] +
+		// 		SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
+		// 		SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
+		// 		SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
+		// 		SH_C3[5] * z * (xx - yy) * sh[14] +
+		// 		SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
+		// }
+	}
+
+	result += 0.5f;
+
+	// RGB colors are clamped to positive values. If values are
+	// clamped, we need to keep track of this for the backward pass.
+	clamped[3 * (idx/27) + 0] = (result.x < 0);
+	clamped[3 * (idx/27) + 1] = (result.y < 0);
+	clamped[3 * (idx/27) + 2] = (result.z < 0);
+	return glm::max(result, 0.0f);
 
 
-	return glm::max(rgb,0.0f);
 }
 
 
@@ -315,11 +419,13 @@ renderCUDA(
 	const float2* __restrict__ points_xy_image,
 	const float* __restrict__ features,
 	const float* __restrict__ texture,
+	float* __restrict__ pixel_count,
 	const float4* __restrict__ conic_opacity,
 	float* __restrict__ final_T,
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
-	float* __restrict__ out_color)
+	float* __restrict__ out_color,
+	bool* clamped)
 {
 	// Identify current tile and associated min/max pixel range.
 	auto block = cg::this_thread_block();
@@ -399,8 +505,8 @@ renderCUDA(
 				continue;
 			}
 
-			glm::vec3 rgb = computeColorFromD(d, texture);
-
+			glm::vec3 rgb = computeColorFromD(collected_id[j] * 27, d, texture, clamped);
+			pixel_count[collected_id[j]] += 1;
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
 				// C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
@@ -437,11 +543,13 @@ void FORWARD::render(
 	const float2* means2D,
 	const float* colors,
 	const float* texture,
+	float* pixel_count,
 	const float4* conic_opacity,
 	float* final_T,
 	uint32_t* n_contrib,
 	const float* bg_color,
-	float* out_color)
+	float* out_color,
+	bool* clamped)
 {
 	// for (int i = 0; i < 12; i++)
 	// {
@@ -454,11 +562,13 @@ void FORWARD::render(
 		means2D,
 		colors,
 		texture,
+		pixel_count,
 		conic_opacity,
 		final_T,
 		n_contrib,
 		bg_color,
-		out_color);
+		out_color,
+		clamped);
 			cudaError_t error = cudaGetLastError();
 	if (error != cudaSuccess) {
 		printf("CUDA error: %s\n", cudaGetErrorString(error));

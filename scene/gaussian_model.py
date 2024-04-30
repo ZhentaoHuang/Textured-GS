@@ -51,6 +51,7 @@ class GaussianModel:
         self._rotation = torch.empty(0)
         self._opacity = torch.empty(0)
         self._texture = torch.empty(0)  # Texture params
+        self.pixel_count = torch.empty(0)
         self.max_radii2D = torch.empty(0)
         self.xyz_gradient_accum = torch.empty(0)
         self.denom = torch.empty(0)
@@ -132,24 +133,44 @@ class GaussianModel:
         fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
         features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda()
         features[:, :3, 0 ] = fused_color
-        features[:, 3:, 1:] = 0.0
+        features[:, :3, 1:] = 0.0
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
 
         dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
+        
         scales = torch.log(torch.sqrt(dist2))[...,None].repeat(1, 3)
+        # set z dimension fixed
+        scales[:,2] = -100
+        # print(scales)
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
 
         opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
-        self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
-        self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
+        self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(False))
+        self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(False))
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+        
+
+        # t = np.array([[0, 1, 2], [2, 5, 6], [1, 1, 1], [0.5, 0.5, 0.5]], dtype=np.float32)
+        # t = np.array([[0.00001, 0.00001, 0.00001], [0.00001, 0.00001, 0.00001], [1, 1, 1], [0.5, 0.5, 0.5],[0.5, 0.5, 0.5],[0.00001, 0.00001, 0.00001], [0.00001, 0.00001, 0.00001], [1, 1, 1], [0.5, 0.5, 0.5]], dtype=np.float32)
+        # t = np.random.rand(9, 3).astype(np.float32)
+        # tensor_np = np.tile(t, (self._opacity.shape[0], 1, 1))
+        # tensor_np = features.clone().detach().transpose(1,2)
+        # # Convert the numpy array to a PyTorch tensor
+        # self._texture = nn.Parameter(torch.tensor(tensor_np, device="cuda").requires_grad_(True))
+
+        tensor_transposed = features.clone().detach().transpose(1, 2).contiguous().to('cuda')
+
+        # Create a Parameter and ensure it requires gradients
+        self._texture = nn.Parameter(tensor_transposed).requires_grad_(True)
+        self.pixel_count = torch.zeros((self.get_xyz.shape[0]), device="cuda").requires_grad_(False)
+
 
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense
@@ -168,11 +189,12 @@ class GaussianModel:
 
         l = [
             {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
-            {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
-            {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
+            # {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
+            # {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
             {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
-            {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
+            {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
+            {'params': [self._texture], 'lr': training_args.feature_lr / 200.0, "name": "texture"},
         ]
 
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
@@ -218,7 +240,6 @@ class GaussianModel:
         texture = self._texture.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
-        print("dtype", dtype_full)
         elements = np.empty(xyz.shape[0], dtype=dtype_full)
         attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation, texture), axis=1)
         elements[:] = list(map(tuple, attributes))
@@ -256,12 +277,12 @@ class GaussianModel:
         text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
         text_names = sorted(text_names, key = lambda x: int(x.split('_')[-1]))
         # assert len(text_names)==3*(self.max_sh_degree + 1) ** 2 - 3
-        assert len(text_names)==12
+        assert len(text_names)==27
 
         texture = np.zeros((xyz.shape[0], len(text_names)))
         for idx, attr_name in enumerate(text_names):
             texture[:, idx] = np.asarray(plydata.elements[0][attr_name])
-        texture = texture.reshape((texture.shape[0], 3, 4))
+        texture = texture.reshape((texture.shape[0], 3, 9))
 
         scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
         scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
@@ -270,7 +291,7 @@ class GaussianModel:
             scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
 
         # Set the z-axis to a constant
-        scales[:, 2] = -100
+        # scales[:, 2] = -100
         rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
         rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
         rots = np.zeros((xyz.shape[0], len(rot_names)))
@@ -285,6 +306,7 @@ class GaussianModel:
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
         self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
         self.active_sh_degree = self.max_sh_degree
+        self.pixel_count = torch.zeros((self.get_xyz.shape[0]), device="cuda").requires_grad_(False)
 
     def replace_tensor_to_optimizer(self, tensor, name):
         optimizable_tensors = {}

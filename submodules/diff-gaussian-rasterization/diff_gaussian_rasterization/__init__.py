@@ -28,6 +28,7 @@ def rasterize_gaussians(
     rotations,
     cov3Ds_precomp,
     texture,
+    pixel_count,
     raster_settings,
 ):
     return _RasterizeGaussians.apply(
@@ -40,6 +41,7 @@ def rasterize_gaussians(
         rotations,
         cov3Ds_precomp,
         texture,
+        pixel_count,
         raster_settings,
     )
 
@@ -56,6 +58,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         rotations,
         cov3Ds_precomp,
         texture,
+        pixel_count,
         raster_settings,
     ):
 
@@ -70,6 +73,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.scale_modifier,
             cov3Ds_precomp,
             texture,
+            pixel_count,
             raster_settings.viewmatrix,
             raster_settings.projmatrix,
             raster_settings.tanfovx,
@@ -98,7 +102,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
-        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer)
+        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, pixel_count)
         return color, radii
 
     @staticmethod
@@ -107,8 +111,8 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer = ctx.saved_tensors
-
+        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, pixel_count = ctx.saved_tensors
+        # print(pixel_count)
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
                 means3D, 
@@ -118,6 +122,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 rotations, 
                 raster_settings.scale_modifier, 
                 cov3Ds_precomp, 
+                texture,
                 raster_settings.viewmatrix, 
                 raster_settings.projmatrix, 
                 raster_settings.tanfovx, 
@@ -136,13 +141,19 @@ class _RasterizeGaussians(torch.autograd.Function):
         if raster_settings.debug:
             cpu_args = cpu_deep_copy_tuple(args) # Copy them before they can be corrupted
             try:
-                grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations = _C.rasterize_gaussians_backward(*args)
+                grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_text = _C.rasterize_gaussians_backward(*args)
             except Exception as ex:
                 torch.save(cpu_args, "snapshot_bw.dump")
                 print("\nAn error occured in backward. Writing snapshot_bw.dump for debugging.\n")
                 raise ex
         else:
-             grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations = _C.rasterize_gaussians_backward(*args)
+             grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_text = _C.rasterize_gaussians_backward(*args)
+        # grad_text = torch.zeros_like(texture)
+        pixel_count[pixel_count == 0] = 1.0
+        pixel_count = pixel_count.squeeze(0).unsqueeze(1).unsqueeze(2) 
+        # print(pixel_count.shape, grad_text.shape)
+        grad_text_1 = grad_text / pixel_count
+        clamped_grad_text = torch.clamp(grad_text_1, min=-0.05, max=0.05)
 
         grads = (
             grad_means3D,
@@ -153,9 +164,12 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_scales,
             grad_rotations,
             grad_cov3Ds_precomp,
+            clamped_grad_text,
+            None,
             None,
         )
 
+        # print("mean", clamped_grad_text.mean(), "min,max", clamped_grad_text.min(), clamped_grad_text.max())
         return grads
 
 class GaussianRasterizationSettings(NamedTuple):
@@ -188,7 +202,7 @@ class GaussianRasterizer(nn.Module):
             
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None, pixel_count = None):
         
         raster_settings = self.raster_settings
 
@@ -221,6 +235,7 @@ class GaussianRasterizer(nn.Module):
             rotations,
             cov3D_precomp,
             texture,
+            pixel_count,
             raster_settings
         )
 

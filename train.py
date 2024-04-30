@@ -93,6 +93,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         
         loss.backward()
+        # torch.nn.utils.clip_grad_value_(gaussians._texture, clip_value=0.002)
         # params_dict = {id(param): {"label": f"1{name}\n{str(param.size())}\nGrad: {param.requires_grad}"} 
         #        for name, param in render_pkg["nn"].named_parameters()}
         # # make_dot(loss, params=dict(render_pkg["nn"].named_parameters())).render("model_graph", format="png")

@@ -211,6 +211,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* rotations,
 	const float* cov3D_precomp,
 	const float* texture,
+	float* pixel_count,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* cam_pos,
@@ -336,11 +337,13 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.means2D,
 		feature_ptr,
 		texture,
+		pixel_count,
 		geomState.conic_opacity,
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		background,
-		out_color), debug)
+		out_color,
+		geomState.clamped), debug)
 
 	return num_rendered;
 }
@@ -358,6 +361,7 @@ void CudaRasterizer::Rasterizer::backward(
 	const float scale_modifier,
 	const float* rotations,
 	const float* cov3D_precomp,
+	const float* texture,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* campos,
@@ -376,6 +380,7 @@ void CudaRasterizer::Rasterizer::backward(
 	float* dL_dsh,
 	float* dL_dscale,
 	float* dL_drot,
+	float* dL_dtext,
 	bool debug)
 {
 	GeometryState geomState = GeometryState::fromChunk(geom_buffer, P);
@@ -407,13 +412,16 @@ void CudaRasterizer::Rasterizer::backward(
 		geomState.means2D,
 		geomState.conic_opacity,
 		color_ptr,
+		texture,
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		dL_dpix,
 		(float3*)dL_dmean2D,
 		(float4*)dL_dconic,
 		dL_dopacity,
-		dL_dcolor), debug)
+		dL_dcolor, 
+		dL_dtext,
+		geomState.clamped), debug)
 
 	// Take care of the rest of preprocessing. Was the precomputed covariance
 	// given to us or a scales/rot pair? If precomputed, pass that. If not,
