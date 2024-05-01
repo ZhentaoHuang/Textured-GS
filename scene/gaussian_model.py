@@ -172,6 +172,7 @@ class GaussianModel:
         self.pixel_count = torch.zeros((self.get_xyz.shape[0]), device="cuda").requires_grad_(False)
 
 
+
     def training_setup(self, training_args):
         self.percent_dense = training_args.percent_dense
         self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
@@ -277,12 +278,12 @@ class GaussianModel:
         text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
         text_names = sorted(text_names, key = lambda x: int(x.split('_')[-1]))
         # assert len(text_names)==3*(self.max_sh_degree + 1) ** 2 - 3
-        assert len(text_names)==27
+        assert len(text_names)==48
 
         texture = np.zeros((xyz.shape[0], len(text_names)))
         for idx, attr_name in enumerate(text_names):
             texture[:, idx] = np.asarray(plydata.elements[0][attr_name])
-        texture = texture.reshape((texture.shape[0], 3, 9))
+        texture = texture.reshape((texture.shape[0], 3, 16))
 
         scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
         scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))

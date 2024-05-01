@@ -9,6 +9,7 @@
  * For inquiries contact  george.drettakis@inria.fr
  */
 #include <cuda_runtime.h>
+#include <iostream>
 
 
 #include "forward.h"
@@ -55,7 +56,7 @@ namespace cg = cooperative_groups;
 // 		rgb.z += amplitude_1[2] * (sin(freq_x_1[2] * x + freq_y_1[2] * y + phase_1[2]));
 // 	// }
 
-// 	rgb += 0.5f;
+// 	rgb += 1.0f;
 // 	// }
 
 // 	//	# Normalize texture to [0, 1]
@@ -73,7 +74,7 @@ namespace cg = cooperative_groups;
 // 	// clamped[3 * (idx/15) + 1] = (rgb.y < 0);
 // 	// clamped[3 * (idx/15) + 2] = (rgb.z < 0);
 
-// 	rgb = glm::min(rgb, 0.999f);
+// 	// rgb = glm::min(rgb, 0.999f);
 // 	return glm::max(rgb,0.0f);
 // }
 
@@ -81,13 +82,14 @@ namespace cg = cooperative_groups;
 __device__ glm::vec3 computeColorFromD(int idx, const float2 d, const float* texture, bool* clamped)
 {
 	// The first version only using x and y. The second version should convert x,y to phi and theta.
-	// float length = sqrt(d.x * d.x + d.y * d.y);
+	// float z = 0.5;
+	// float length = sqrt(d.x * d.x + d.y * d.y + z * z);
 
-	// float x, y, z;
-	// if (length != 0.0f) {
+	// float x, y;
+	// if (length > 1e-8) {
 	// 	x = d.x / length;
 	// 	y = d.y / length;
-	// 	z = sqrt(max(0.0f, 1 - x*x - y*y));
+	// 	z = z / length;
 	// } else {
 	// 	// Handle the zero-length case, perhaps default to z-axis.
 	// 	x = 0.0f;
@@ -110,15 +112,16 @@ __device__ glm::vec3 computeColorFromD(int idx, const float2 d, const float* tex
 		z = 1.0f;
 	}
 
+
 	// float z = 0.0000001f;
 	// printf("x: %f, y: %f, z:%f.", x, y, z);
-	int deg = 2;
-	int max_coeffs = 27;
+	int deg = 3;
+
 
 	// glm::vec3* sh = ((glm::vec3*)texture) + idx;// * max_coeffs;
-	glm::vec3 sh[9];
+	glm::vec3 sh[16];
 
-	for (int i = 0; i < 9; i++)
+	for (int i = 0; i < (deg+1) * (deg+1); i++)
 	{
 		sh[i].x = texture[idx + 3*i];
 		sh[i].y = texture[idx + 3*i + 1]; 
@@ -139,27 +142,35 @@ __device__ glm::vec3 computeColorFromD(int idx, const float2 d, const float* tex
 			SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
 			SH_C2[3] * xz * sh[7] +
 			SH_C2[4] * (xx - yy) * sh[8];
+		
+		// printf("Computed terms: xx=%f, yy=%f, zz=%f, xy=%f\n", xx, yy, zz, xy);
+// 		for (int i = 10; i < 16; i++) {
+//     printf("sh[%d]: %f, %f, %f\n", i, sh[i].x, sh[i].y, sh[i].z);
+// }	
+		// printf("result: %f,%f,%f\n", result.x, result.y, result.z);
+		if (deg > 2)
+		{
+			sh[9].x = 0.0f;
+			result = result +
+				SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
+				SH_C3[1] * xy * z * sh[10] +
+				SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
+				SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
+				SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
+				SH_C3[5] * z * (xx - yy) * sh[14] +
+				SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
 
-		// if (deg > 2)
-		// {
-		// 	result = result +
-		// 		SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
-		// 		SH_C3[1] * xy * z * sh[10] +
-		// 		SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
-		// 		SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
-		// 		SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
-		// 		SH_C3[5] * z * (xx - yy) * sh[14] +
-		// 		SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
-		// }
+		}
+		// printf("Computed terms:x=%f, y=%f, z=%f, xx=%f, yy=%f, zz=%f, xy=%f. Result after deg > 2 calculations: result=%f\n", x,y,z,xx, yy, zz, xy, result);
 	}
-
+	// printf("%f,%f,%f.", result.x, result.y, result.z);
 	result += 0.5f;
 
 	// RGB colors are clamped to positive values. If values are
 	// clamped, we need to keep track of this for the backward pass.
-	clamped[3 * (idx/27) + 0] = (result.x < 0);
-	clamped[3 * (idx/27) + 1] = (result.y < 0);
-	clamped[3 * (idx/27) + 2] = (result.z < 0);
+	clamped[3 * (idx/48) + 0] = (result.x < 0);
+	clamped[3 * (idx/48) + 1] = (result.y < 0);
+	clamped[3 * (idx/48) + 2] = (result.z < 0);
 	return glm::max(result, 0.0f);
 
 
@@ -505,7 +516,7 @@ renderCUDA(
 				continue;
 			}
 
-			glm::vec3 rgb = computeColorFromD(collected_id[j] * 27, d, texture, clamped);
+			glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, d, texture, clamped);
 			pixel_count[collected_id[j]] += 1;
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)

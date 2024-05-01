@@ -22,9 +22,9 @@ namespace cg = cooperative_groups;
 // 	int max_coeffs = idx / 27;
 
 // 	// TODO 3* max?????
-// 	dL_dcolor.x *= clamped[max_coeffs + 0] ? 0 : 1;
-// 	dL_dcolor.y *= clamped[max_coeffs + 1] ? 0 : 1;
-// 	dL_dcolor.z *= clamped[max_coeffs + 2] ? 0 : 1;
+// 	dL_dcolor.x *= clamped[3*max_coeffs + 0] ? 0 : 1;
+// 	dL_dcolor.y *= clamped[3*max_coeffs + 1] ? 0 : 1;
+// 	dL_dcolor.z *= clamped[3*max_coeffs + 2] ? 0 : 1;
 // 	// float* texture = textures[idx];
 // 	// glm::vec3* texture = texture + idx * max_coeffs;
 
@@ -56,37 +56,37 @@ namespace cg = cooperative_groups;
 // 	common_factor_1.z = dL_dcolor.z * texture[idx+26] * cos(texture[idx+17] * d.x + texture[idx+20] * d.y + texture[idx+23]);
 
 // 	// grad_freq_x[i] = common_factor * x;     
-// 	dL_dtext[idx] += 0.1* common_factor.x * d.x;
-// 	dL_dtext[idx+1] += 0.1* common_factor.y * d.x;
-// 	dL_dtext[idx+2] += 0.1* common_factor.z * d.x;
-// 	dL_dtext[idx+15] += 0.1* common_factor_1.x * d.x;
-// 	dL_dtext[idx+16] += 0.1* common_factor_1.y * d.x;
-// 	dL_dtext[idx+17] += 0.1* common_factor_1.z * d.x;
+// 	dL_dtext[idx] += common_factor.x * d.x;
+// 	dL_dtext[idx+1] += common_factor.y * d.x;
+// 	dL_dtext[idx+2] += common_factor.z * d.x;
+// 	dL_dtext[idx+15] += common_factor_1.x * d.x;
+// 	dL_dtext[idx+16] += common_factor_1.y * d.x;
+// 	dL_dtext[idx+17] += common_factor_1.z * d.x;
 // 	// grad_freq_y[i] = common_factor * y;
-// 	dL_dtext[idx+4] += 0.1*common_factor.y * d.y;
-// 	dL_dtext[idx+3] += 0.1*common_factor.x * d.y;
-// 	dL_dtext[idx+5] += 0.1*common_factor.z * d.y;
-// 	dL_dtext[idx+18] += 0.1*common_factor_1.x * d.y;
-// 	dL_dtext[idx+19] += 0.1*common_factor_1.y * d.y;
-// 	dL_dtext[idx+20] += 0.1*common_factor_1.z * d.y;
+// 	dL_dtext[idx+4] += common_factor.y * d.y;
+// 	dL_dtext[idx+3] += common_factor.x * d.y;
+// 	dL_dtext[idx+5] += common_factor.z * d.y;
+// 	dL_dtext[idx+18] += common_factor_1.x * d.y;
+// 	dL_dtext[idx+19] += common_factor_1.y * d.y;
+// 	dL_dtext[idx+20] += common_factor_1.z * d.y;
 // 	// grad_phase[i] = common_factor;
-// 	dL_dtext[idx+6] += 0.1*common_factor.x;
-// 	dL_dtext[idx+7] += 0.1*common_factor.y;
-// 	dL_dtext[idx+8] += 0.1*common_factor.z;
-// 	dL_dtext[idx+21] += 0.1*common_factor_1.x;
-// 	dL_dtext[idx+22] += 0.1*common_factor_1.y;
-// 	dL_dtext[idx+23] += 0.1*common_factor_1.z;
+// 	dL_dtext[idx+6] += common_factor.x;
+// 	dL_dtext[idx+7] += common_factor.y;
+// 	dL_dtext[idx+8] += common_factor.z;
+// 	dL_dtext[idx+21] += common_factor_1.x;
+// 	dL_dtext[idx+22] += common_factor_1.y;
+// 	dL_dtext[idx+23] += common_factor_1.z;
 // 	// grad_amplitude[i] = sin(freq_x[i] * x + freq_y[i] * y + phase[i]
-// 	dL_dtext[idx+9] += 0.1*sin(texture[idx] * d.x + texture[idx+3] * d.y + texture[idx+6]);
-// 	dL_dtext[idx+10] += 0.1*sin(texture[idx+1] * d.x + texture[idx+4] * d.y + texture[idx+7]);
-// 	dL_dtext[idx+11] += 0.1*sin(texture[idx+2] * d.x + texture[idx+5] * d.y + texture[idx+8]);
-// 	dL_dtext[idx+24] += 0.1*sin(texture[idx+15] * d.x + texture[idx+18] * d.y + texture[idx+21]);
-// 	dL_dtext[idx+25] += 0.1*sin(texture[idx+16] * d.x + texture[idx+19] * d.y + texture[idx+22]);
-// 	dL_dtext[idx+26] += 0.1*sin(texture[idx+17] * d.x + texture[idx+20] * d.y + texture[idx+23]);
+// 	dL_dtext[idx+9] += sin(texture[idx] * d.x + texture[idx+3] * d.y + texture[idx+6]);
+// 	dL_dtext[idx+10] += sin(texture[idx+1] * d.x + texture[idx+4] * d.y + texture[idx+7]);
+// 	dL_dtext[idx+11] += sin(texture[idx+2] * d.x + texture[idx+5] * d.y + texture[idx+8]);
+// 	dL_dtext[idx+24] += sin(texture[idx+15] * d.x + texture[idx+18] * d.y + texture[idx+21]);
+// 	dL_dtext[idx+25] += sin(texture[idx+16] * d.x + texture[idx+19] * d.y + texture[idx+22]);
+// 	dL_dtext[idx+26] += sin(texture[idx+17] * d.x + texture[idx+20] * d.y + texture[idx+23]);
 
-// 	dL_dtext[idx+12] += 0.1*dL_dcolor.x;
-// 	dL_dtext[idx+13] += 0.1*dL_dcolor.y;
-// 	dL_dtext[idx+14] += 0.1*dL_dcolor.z;
+// 	dL_dtext[idx+12] += dL_dcolor.x;
+// 	dL_dtext[idx+13] += dL_dcolor.y;
+// 	dL_dtext[idx+14] += dL_dcolor.z;
 
 
 
@@ -97,8 +97,8 @@ namespace cg = cooperative_groups;
 
 __device__ void computeColorFromD(int idx, const float2 d, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
 {
-	int max_coeffs = idx / 27;
-	int deg = 2;
+	int max_coeffs = idx / 48;
+	int deg = 3;
 	
 	glm::vec3 dL_dRGB = dL_dcolor;
 
@@ -106,12 +106,15 @@ __device__ void computeColorFromD(int idx, const float2 d, const float* texture,
 	dL_dRGB.y *= clamped[3*max_coeffs + 1] ? 0 : 1;
 	dL_dRGB.z *= clamped[3*max_coeffs + 2] ? 0 : 1;
 
-	// float x, y, z;
-	// float length = sqrt(d.x * d.x + d.y * d.y);
-	// if (length != 0.0f) {
+	// The first version only using x and y. The second version should convert x,y to phi and theta.
+	// float z = 0.5;
+	// float length = sqrt(d.x * d.x + d.y * d.y + z * z);
+
+	// float x, y;
+	// if (length > 1e-8) {
 	// 	x = d.x / length;
 	// 	y = d.y / length;
-	// 	z = sqrt(max(0.0f, 1 - x*x - y*y));
+	// 	z = z / length;
 	// } else {
 	// 	// Handle the zero-length case, perhaps default to z-axis.
 	// 	x = 0.0f;
@@ -133,9 +136,9 @@ __device__ void computeColorFromD(int idx, const float2 d, const float* texture,
 		y = 0.0f;
 		z = 1.0f;
 	}
+	// printf("x: %f, y: %f, z:%f.", x, y, z);
 
-
-	glm::vec3 dL_dsh[9];
+	glm::vec3 dL_dsh[16];
 
 
 	dL_dsh[0] = SH_C0 * dL_dRGB;
@@ -218,7 +221,7 @@ __device__ void computeColorFromD(int idx, const float2 d, const float* texture,
 		}
 	}
 
-	for (int i = 0; i < 9; i++)
+	for (int i = 0; i < (deg+1)*(deg+1); i++)
 	{
 
 		dL_dtext[idx + 3*i] = dL_dsh[i].x;
@@ -759,7 +762,7 @@ renderCUDA(
 				
 				
 			}
-			computeColorFromD(global_id * 27, d, texture, tmp, dL_dtext, clamped);
+			computeColorFromD(global_id * 48, d, texture, tmp, dL_dtext, clamped);
 			// the gradients are needed for every pixel of the Gaussian
 			// computeColorFromD(int idx, const float* textures, dchannel_dcolor * dL_dchannel, glm::vec3* dL_dtext);
 			dL_dalpha *= T;
