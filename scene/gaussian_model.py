@@ -127,6 +127,54 @@ class GaussianModel:
         if self.active_sh_degree < self.max_sh_degree:
             self.active_sh_degree += 1
 
+
+
+    def create_from_pcd_masked(self, pcd: BasicPointCloud, spatial_lr_scale: float, reference_index: int=21000, num_neighbors: int = 3):
+        self.spatial_lr_scale = spatial_lr_scale
+        # Load and convert point cloud data to PyTorch tensors on CUDA
+        fused_point_cloud = torch.tensor(np.asarray(pcd.points), dtype=torch.float).cuda()
+        fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors), dtype=torch.float).cuda())
+        features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2), dtype=torch.float).cuda()
+        features[:, :3, 0] = fused_color
+        features[:, :3, 1:] = 0.0
+
+        print("Number of points at initialisation: ", fused_point_cloud.shape[0])
+
+        # Compute pairwise distances from each point to the reference point
+        ref_point = fused_point_cloud[reference_index].unsqueeze(0)  # Reference point
+        distances = torch.norm(fused_point_cloud - ref_point, dim=1)
+        nearest_indices = torch.argsort(distances)[:num_neighbors]  # Indices of the nearest neighbors
+
+        # Filter data to include only the 50 nearest neighbors
+        fused_point_cloud = fused_point_cloud[nearest_indices]
+        fused_color = fused_color[nearest_indices]
+        features = features[nearest_indices]
+
+        # Calculate scales based on distances, keep z dimension fixed
+        dist2 = torch.clamp_min(torch.norm(fused_point_cloud - ref_point, dim=1, keepdim=True), 0.0000001)
+        scales = torch.log(torch.sqrt(dist2)).repeat(1, 3)
+        scales[:, 2] = -100  # Setting the z dimension scale fixed
+
+        # Set rotations and opacities
+        rots = torch.zeros((num_neighbors, 4), device="cuda")
+        rots[:, 0] = 1  # Default rotation quaternion
+        opacities = inverse_sigmoid(0.1 * torch.ones((num_neighbors, 1), dtype=torch.float, device="cuda"))
+
+        # Update PyTorch tensors to Parameters
+        self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        self._features_dc = nn.Parameter(features[:, :, 0:1].transpose(1, 2).contiguous().requires_grad_(False))
+        self._features_rest = nn.Parameter(features[:, :, 1:].transpose(1, 2).contiguous().requires_grad_(False))
+        self._scaling = nn.Parameter(scales.requires_grad_(True))
+        self._rotation = nn.Parameter(rots.requires_grad_(True))
+        self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+
+        # Update texture and pixel count parameters
+        self._texture = nn.Parameter(features.clone().detach().transpose(1, 2).contiguous().to('cuda')).requires_grad_(True)
+        self.pixel_count = torch.zeros((num_neighbors,), device="cuda").requires_grad_(False)
+
+    
+
     def create_from_pcd(self, pcd : BasicPointCloud, spatial_lr_scale : float):
         self.spatial_lr_scale = spatial_lr_scale
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
@@ -195,7 +243,7 @@ class GaussianModel:
             {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
-            {'params': [self._texture], 'lr': training_args.feature_lr / 200.0, "name": "texture"},
+            {'params': [self._texture], 'lr': training_args.feature_lr / 200000.0, "name": "texture"},
         ]
 
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
@@ -227,6 +275,54 @@ class GaussianModel:
         for i in range(self._texture.shape[1]*self._texture.shape[2]):
             l.append('text_{}'.format(i))
         return l
+
+
+    def save_ply_maksed(self, path, filter_opacity_threshold=None, region_bounds=None):
+        mkdir_p(os.path.dirname(path))
+
+        # Detach and transfer data from GPU to CPU memory
+        xyz = self._xyz.detach().cpu().numpy()
+        normals = np.zeros_like(xyz)  # Assuming no normals are calculated
+        f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        opacities = self._opacity.detach().cpu().numpy()
+        scales = self._scaling.detach().cpu().numpy()
+        rotations = self._rotation.detach().cpu().numpy()
+        texture = self._texture.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+
+        # Apply filters
+        mask = np.ones(len(xyz), dtype=bool)  # Initialize mask to include all Gaussians
+        if filter_opacity_threshold is not None:
+            mask &= (opacities > filter_opacity_threshold).flatten()  # Filter by opacity
+        if region_bounds is not None:
+            xmin, xmax, ymin, ymax, zmin, zmax = region_bounds
+            mask &= (xyz[:, 0] >= xmin) & (xyz[:, 0] <= xmax)
+            mask &= (xyz[:, 1] >= ymin) & (xyz[:, 1] <= ymax)
+            mask &= (xyz[:, 2] >= zmin) & (xyz[:, 2] <= zmax)
+
+        # Filter the data
+        filtered_xyz = xyz[mask]
+        filtered_normals = normals[mask]
+        filtered_f_dc = f_dc[mask]
+        filtered_f_rest = f_rest[mask]
+        filtered_opacities = opacities[mask]
+        filtered_scales = scales[mask]
+        filtered_rotations = rotations[mask]
+        filtered_texture = texture[mask]
+
+        # Combine all attributes
+        dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
+        elements = np.empty(len(filtered_xyz), dtype=dtype_full)
+        attributes = np.concatenate((
+            filtered_xyz, filtered_normals, filtered_f_dc, filtered_f_rest,
+            filtered_opacities, filtered_scales, filtered_rotations, filtered_texture
+        ), axis=1)
+        elements[:] = list(map(tuple, attributes))
+        
+        # Create a PlyElement object and write to file
+        el = PlyElement.describe(elements, 'vertex')
+        PlyData([el], text=True).write(path)
+
 
     def save_ply(self, path):
         mkdir_p(os.path.dirname(path))
@@ -278,13 +374,17 @@ class GaussianModel:
         text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
         text_names = sorted(text_names, key = lambda x: int(x.split('_')[-1]))
         # assert len(text_names)==3*(self.max_sh_degree + 1) ** 2 - 3
-        assert len(text_names)==48
-
-        texture = np.zeros((xyz.shape[0], len(text_names)))
-        for idx, attr_name in enumerate(text_names):
-            texture[:, idx] = np.asarray(plydata.elements[0][attr_name])
-        texture = texture.reshape((texture.shape[0], 3, 16))
-
+        # assert len(text_names)==48
+        if (len(text_names) == 48):
+            texture = np.zeros((xyz.shape[0], len(text_names)))
+            for idx, attr_name in enumerate(text_names):
+                texture[:, idx] = np.asarray(plydata.elements[0][attr_name])
+            texture = texture.reshape((texture.shape[0], 3, 16))
+            self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        else:
+            print("No texture loaded!")
+    
+        
         scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
         scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
         scales = np.zeros((xyz.shape[0], len(scale_names)))
@@ -305,7 +405,7 @@ class GaussianModel:
         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        
         self.active_sh_degree = self.max_sh_degree
         self.pixel_count = torch.zeros((self.get_xyz.shape[0]), device="cuda").requires_grad_(False)
 

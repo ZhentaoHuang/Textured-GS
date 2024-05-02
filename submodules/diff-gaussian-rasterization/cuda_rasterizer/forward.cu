@@ -18,84 +18,108 @@
 #include <cooperative_groups/reduce.h>
 namespace cg = cooperative_groups;
 
-
-// // Forward method for converting the input pixel distance from the mean to RGB
-// __device__ glm::vec3 computeColorFromD(int idx, const float2 d, const float* texture, bool* clamped)
-// {
-// 	// Should be (0,1) for each channel
-// 	glm::vec3 rgb;
-// 	float x = d.x;
-// 	float y = d.y;
-// 	const int n = 3;
-
-// 	//t = [0,1,2,2,5,6,1,1,1,0.5,0.5,0.5]
-// 	// new t = [[0,1,2],[2,5,6],[1,1,1],[0.5,0.5,0.5]]
-// 	float freq_x[n] = {texture[idx],texture[idx+1],texture[idx+2]};
-// 	float freq_y[n] = {texture[idx+3],texture[idx+4],texture[idx+5]};
-// 	float phase[n] = {texture[idx+6],texture[idx+7],texture[idx+8]};
-// 	float amplitude[n] = {texture[idx+9],texture[idx+10],texture[idx+11]};
-// 	float rgb_phase[n] = {texture[idx+12], texture[idx+13], texture[idx+14]};
-
-// 	float freq_x_1[] = {texture[idx+15],texture[idx+16],texture[idx+17]};
-// 	float freq_y_1[] = {texture[idx+18],texture[idx+19],texture[idx+20]};
-// 	float phase_1[] = {texture[idx+21],texture[idx+22],texture[idx+23]};
-// 	float amplitude_1[] = {texture[idx+24],texture[idx+25],texture[idx+26]};
-
-// 	rgb.x = 0;
-// 	rgb.y = 0;
-// 	rgb.z = 0;
-
-// 	// for (int i = 0; i < n; i++)
-// 	// {
-// 		rgb.x += amplitude[0] * (sin(freq_x[0] * x + freq_y[0] * y + phase[0])) + rgb_phase[0];
-// 		rgb.y += amplitude[1] * (sin(freq_x[1] * x + freq_y[1] * y + phase[1])) + rgb_phase[1];
-// 		rgb.z += amplitude[2] * (sin(freq_x[2] * x + freq_y[2] * y + phase[2])) + rgb_phase[2];
-
-// 		rgb.x += amplitude_1[0] * (sin(freq_x_1[0] * x + freq_y_1[0] * y + phase_1[0]));
-// 		rgb.y += amplitude_1[1] * (sin(freq_x_1[1] * x + freq_y_1[1] * y + phase_1[1]));
-// 		rgb.z += amplitude_1[2] * (sin(freq_x_1[2] * x + freq_y_1[2] * y + phase_1[2]));
-// 	// }
-
-// 	rgb += 1.0f;
-// 	// }
-
-// 	//	# Normalize texture to [0, 1]
-// 	// texture = (texture - texture.min()) / (texture.max() - texture.min())
-// 	// texture = torch.sigmoid(texture)
-// 		// RGB colors are clamped to positive values. If values are
-// 	// clamped, we need to keep track of this for the backward pass.
-// 	if (rgb.x < 0 )
-// 		clamped[3 * (idx/27) + 0] = true;
-// 	if (rgb.y < 0 )
-// 		clamped[3 * (idx/27) + 1] = true;
-// 	if (rgb.z < 0 )
-// 		clamped[3 * (idx/27) + 2] = true;
-// 	// clamped[3 * (idx/15) + 0] = (rgb.x < 0);
-// 	// clamped[3 * (idx/15) + 1] = (rgb.y < 0);
-// 	// clamped[3 * (idx/15) + 2] = (rgb.z < 0);
-
-// 	// rgb = glm::min(rgb, 0.999f);
-// 	return glm::max(rgb,0.0f);
-// }
-
-
-__device__ glm::vec3 computeColorFromD(int idx, const float2 d, const float* texture, bool* clamped)
+__device__ glm::vec3 computeColorFromD(int idx, const float2 d, float4 conic, const float* texture, bool* clamped)
 {
-	// The first version only using x and y. The second version should convert x,y to phi and theta.
-	// float z = 0.5;
-	// float length = sqrt(d.x * d.x + d.y * d.y + z * z);
+	float quadratic_form = d.x * d.x * conic.x + d.y * d.y * conic.z;
+	// The second version use length as z, then normalize.
+	float z = sqrt(quadratic_form);
+	float length = sqrt(d.x * d.x + d.y * d.y);
+	float x, y;
+	
+	if (length != 0.0f) {
+		x = d.x / length;
+		y = d.y / length;
+	} else {
+		x = 0.0f;
+		y = 0.0f;
+	}
+	
+	
+	length = sqrt(z*z + x * x + y * y);
+	
+	
+	if (length != 0.0f) {
+		x = d.x / length;
+		y = d.y / length;
+		z = z / length;
+	} else {
+		// Handle the zero-length case, perhaps default to z-axis.
+		x = 0.0f;
+		y = 0.0f;
+		z = 1.0f;
+	}
+	
 
-	// float x, y;
-	// if (length > 1e-8) {
-	// 	x = d.x / length;
-	// 	y = d.y / length;
-	// 	z = z / length;
-	// } else {
-	// 	// Handle the zero-length case, perhaps default to z-axis.
-	// 	x = 0.0f;
-	// 	y = 0.0f;
-	// 	z = 1.0f;
-	// }
+	// float z = 0.0000001f;
+	// printf("x: %f, y: %f, z:%f.", x, y, z);
+	int deg = 3;
+	
+
+
+	// glm::vec3* sh = ((glm::vec3*)texture) + idx;// * max_coeffs;
+	glm::vec3 sh[16];
+
+	for (int i = 0; i < (deg+1) * (deg+1); i++)
+	{
+		sh[i].x = texture[idx + 3*i];
+		sh[i].y = texture[idx + 3*i + 1]; 
+		sh[i].z = texture[idx + 3*i + 2];
+	}
+
+	glm::vec3 result = SH_C0 * sh[0];
+	
+	result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+	// printf("asd:%f,%f,%f..%f, %f, %f", sh[0].x, sh[0].y, sh[0].z, sh[1].x, sh[1].y, sh[1].z);
+	if (deg > 1)
+	{
+		float xx = x * x, yy = y * y, zz = z * z;
+		float xy = x * y, yz = y * z, xz = x * z;
+		result = result +
+			SH_C2[0] * xy * sh[4] +
+			SH_C2[1] * yz * sh[5] +
+			SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
+			SH_C2[3] * xz * sh[7] +
+			SH_C2[4] * (xx - yy) * sh[8];
+		
+		// printf("Computed terms: xx=%f, yy=%f, zz=%f, xy=%f\n", xx, yy, zz, xy);
+// 		for (int i = 10; i < 16; i++) {
+//     printf("sh[%d]: %f, %f, %f\n", i, sh[i].x, sh[i].y, sh[i].z);
+// }	
+		// printf("result: %f,%f,%f\n", result.x, result.y, result.z);
+		if (deg > 2)
+		{
+			sh[9].x = 0.0f;
+			result = result +
+				SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
+				SH_C3[1] * xy * z * sh[10] +
+				SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
+				SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
+				SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
+				SH_C3[5] * z * (xx - yy) * sh[14] +
+				SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
+
+		}
+		// printf("Computed terms:x=%f, y=%f, z=%f, xx=%f, yy=%f, zz=%f, xy=%f. Result after deg > 2 calculations: result=%f\n", x,y,z,xx, yy, zz, xy, result);
+	}
+	// printf("%f,%f,%f.", result.x, result.y, result.z);
+	result += 0.5f;
+
+
+	// RGB colors are clamped to positive values. If values are
+	// clamped, we need to keep track of this for the backward pass.
+	clamped[3 * (idx/48) + 0] = (result.x < 0);
+	clamped[3 * (idx/48) + 1] = (result.y < 0);
+	clamped[3 * (idx/48) + 2] = (result.z < 0);
+	return glm::max(result, 0.0f);
+
+
+}
+
+
+
+__device__ glm::vec3 computeColorFromD1(int idx, const float2 d, float4 conic, const float* texture, bool* clamped)
+{
+
 	// The second version use length as z, then normalize.
 	float z = sqrt(d.x * d.x + d.y * d.y);
 	float length = sqrt(z*z + d.x * d.x + d.y * d.y);
@@ -499,6 +523,7 @@ renderCUDA(
 			float2 d = { xy.x - pixf.x, xy.y - pixf.y };
 			float4 con_o = collected_conic_opacity[j];
 			float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
+			// printf("con_o.x: %f, con_o.y: %f, con_o.y: %f", con_o.x, con_o.y, con_o.z);
 			if (power > 0.0f)
 				continue;
 
@@ -516,7 +541,7 @@ renderCUDA(
 				continue;
 			}
 
-			glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, d, texture, clamped);
+			glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, d, con_o, texture, clamped);
 			pixel_count[collected_id[j]] += 1;
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
