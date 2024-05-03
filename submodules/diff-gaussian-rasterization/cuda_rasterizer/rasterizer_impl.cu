@@ -343,7 +343,11 @@ int CudaRasterizer::Rasterizer::forward(
 		imgState.n_contrib,
 		background,
 		out_color,
-		geomState.clamped), debug)
+		geomState.clamped,
+		viewmatrix, projmatrix,
+		means3D,
+		(glm::vec3*)cam_pos,
+		(glm::vec4*)rotations), debug)
 
 	return num_rendered;
 }

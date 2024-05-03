@@ -62,7 +62,12 @@ namespace FORWARD
 		uint32_t* n_contrib,
 		const float* bg_color,
 		float* out_color,
-		bool* clamped);
+		bool* clamped,
+		const float* viewmatrix,
+		const float* projmatrix,
+		const float* means3D,
+		const glm::vec3* cam_pos,
+		const glm::vec4* rotations);
 }
 
 

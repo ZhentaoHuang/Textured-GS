@@ -18,36 +18,181 @@
 #include <cooperative_groups/reduce.h>
 namespace cg = cooperative_groups;
 
-__device__ glm::vec3 computeColorFromD(int idx, const float2 d, float4 conic, const float* texture, bool* clamped)
+
+__device__ float determinant(const float *m) {
+    return
+        m[0] * (m[5] * (m[10] * m[15] - m[11] * m[14]) -
+                m[9] * (m[6] * m[15] - m[7] * m[14]) +
+                m[13] * (m[6] * m[11] - m[7] * m[10])) -
+
+        m[1] * (m[4] * (m[10] * m[15] - m[11] * m[14]) -
+                m[8] * (m[6] * m[15] - m[7] * m[14]) +
+                m[12] * (m[6] * m[11] - m[7] * m[10])) +
+
+        m[2] * (m[4] * (m[9] * m[15] - m[11] * m[13]) -
+                m[8] * (m[5] * m[15] - m[7] * m[13]) +
+                m[12] * (m[5] * m[11] - m[7] * m[9])) -
+
+        m[3] * (m[4] * (m[9] * m[14] - m[10] * m[13]) -
+                m[8] * (m[5] * m[14] - m[6] * m[13]) +
+                m[12] * (m[5] * m[10] - m[6] * m[9]));
+}
+
+__device__ void adjugate(const float *m, float *adj) {
+    adj[0] = m[5] * (m[10] * m[15] - m[11] * m[14]) - m[6] * (m[9] * m[15] - m[11] * m[13]) + m[7] * (m[9] * m[14] - m[10] * m[13]);
+    adj[1] = -(m[1] * (m[10] * m[15] - m[11] * m[14]) - m[2] * (m[9] * m[15] - m[11] * m[13]) + m[3] * (m[9] * m[14] - m[10] * m[13]));
+    adj[2] = m[1] * (m[6] * m[15] - m[7] * m[14]) - m[2] * (m[5] * m[15] - m[7] * m[13]) + m[3] * (m[5] * m[14] - m[6] * m[13]);
+    adj[3] = -(m[1] * (m[6] * m[11] - m[7] * m[10]) - m[2] * (m[5] * m[11] - m[7] * m[9]) + m[3] * (m[5] * m[10] - m[6] * m[9]));
+
+    adj[4] = -(m[4] * (m[10] * m[15] - m[11] * m[14]) - m[6] * (m[8] * m[15] - m[11] * m[12]) + m[7] * (m[8] * m[14] - m[10] * m[12]));
+    adj[5] = m[0] * (m[10] * m[15] - m[11] * m[14]) - m[2] * (m[8] * m[15] - m[11] * m[12]) + m[3] * (m[8] * m[14] - m[10] * m[12]);
+    adj[6] = -(m[0] * (m[6] * m[15] - m[7] * m[14]) - m[2] * (m[4] * m[15] - m[7] * m[12]) + m[3] * (m[4] * m[14] - m[6] * m[12]));
+    adj[7] = m[0] * (m[6] * m[11] - m[7] * m[10]) - m[2] * (m[4] * m[11] - m[7] * m[8]) + m[3] * (m[4] * m[10] - m[6] * m[8]);
+
+    adj[8] = m[4] * (m[9] * m[15] - m[11] * m[13]) - m[5] * (m[8] * m[15] - m[11] * m[12]) + m[7] * (m[8] * m[13] - m[9] * m[12]);
+    adj[9] = -(m[0] * (m[9] * m[15] - m[11] * m[13]) - m[1] * (m[8] * m[15] - m[11] * m[12]) + m[3] * (m[8] * m[13] - m[9] * m[12]));
+    adj[10] = m[0] * (m[5] * m[15] - m[7] * m[13]) - m[1] * (m[4] * m[15] - m[7] * m[12]) + m[3] * (m[4] * m[13] - m[5] * m[12]);
+	adj[11] = -(m[0] * (m[5] * m[11] - m[7] * m[9]) - m[1] * (m[4] * m[11] - m[7] * m[8]) + m[3] * (m[4] * m[9] - m[5] * m[8]));
+
+    adj[12] = -(m[4] * (m[9] * m[14] - m[10] * m[13]) - m[5] * (m[8] * m[14] - m[10] * m[12]) + m[6] * (m[8] * m[13] - m[9] * m[12]));
+    adj[13] = m[0] * (m[9] * m[14] - m[10] * m[13]) - m[1] * (m[8] * m[14] - m[10] * m[12]) + m[2] * (m[8] * m[13] - m[9] * m[12]);
+    adj[14] = -(m[0] * (m[5] * m[14] - m[6] * m[13]) - m[1] * (m[4] * m[14] - m[6] * m[12]) + m[2] * (m[4] * m[13] - m[5] * m[12]));
+    adj[15] = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[1] * (m[4] * m[10] - m[6] * m[8]) + m[2] * (m[4] * m[9] - m[5] * m[8]);
+}
+
+
+
+
+__device__ void invertMatrix(const float *mat, float *invMat) {
+    float det = determinant(mat);
+    if (fabs(det) < 1e-6) {
+        // Matrix is singular or nearly singular, handle this case in your application
+        return;
+    }
+
+    float adj[16];
+    adjugate(mat, adj);
+
+    float invDet = 1.0 / det;
+    for (int i = 0; i < 16; ++i) {
+        invMat[i] = adj[i] * invDet;
+    }
+}
+
+
+__device__ float3 getRayVec(float2 pix, int W, int H, const float* viewmatrix, const float* projmatrix)
 {
-	float quadratic_form = d.x * d.x * conic.x + d.y * d.y * conic.z;
-	// The second version use length as z, then normalize.
-	float z = sqrt(quadratic_form);
-	float length = sqrt(d.x * d.x + d.y * d.y);
+	// Convert pixel coordinates to normalized device coordinates (NDC)
+    float ndcX = 2.0f * ((pix.x + 0.5f) / W) - 1.0f;
+    float ndcY = 2.0f * ((pix.y + 0.5f) / H) - 1.0f;  // Direct conversion without flipping
+
+    // Define point in clip coordinates to shoot the ray
+    float3 clipCoords = make_float3(ndcX, ndcY, -1.0f); // Setting z to -1 for forward direction
+
+	float invProj[16];
+	float invView[16];
+
+	invertMatrix(projmatrix, invProj);
+	invertMatrix(viewmatrix, invView);
+
+    // Transform to camera space using the inverse projection matrix
+    float4 eyeCoords = transformPoint4x4(clipCoords, invProj);
+	float p_w = 1.0f / (eyeCoords.w + 0.0000001f);
+	float3 p_proj = { eyeCoords.x * p_w, eyeCoords.y * p_w, eyeCoords.z * p_w }; // eye coords
+
+
+
+    eyeCoords.z = -1.0f;  // Ensure the ray points forward in camera space
+    eyeCoords.w = 0.0f;   // Convert to direction vector
+
+    // Transform to world space using the inverse view matrix
+    // float4 rayWorld = invView * eyeCoords;
+    // Vec3 rayDirection = Vec3::normalize(Vec3(rayWorld.x, rayWorld.y, rayWorld.z));
+	float4 rayWorld = transformPoint4x4(p_proj, invView);
+	float r_w = 1.0f / (rayWorld.w + 0.0000001f);
+	float3 ray = { rayWorld.x * r_w, rayWorld.y * r_w, rayWorld.z * r_w };
+
+
+    // Store the result
+    // rayDirs[y * width + x] = rayDirection;
+	// printf("p: %f,%f, Ray: %f,%f,%f\n", pix.x, pix.y, ray.x, ray.y, ray.z);
+
+	return ray;
+
+}
+
+
+
+__device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos)
+{
+	float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
+	float r = rot.x;
+	float x = rot.y;
+	float y = rot.z;
+	float z = rot.w;
+	float R[16] = {
+		1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
+		2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
+		2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
+	};
+	float3 oLocal = transformVec4x3Transpose(o_t, R); // new center
+	float3 dLocal = transformVec4x3Transpose(ray, R); // new dir
+	float zMean = 0;
+
+	 if (fabs(dLocal.z) < 1e-6) { // Check if the ray is parallel to the plane
+        if (fabs(oLocal.z - zMean) < 1e-6) {
+            return oLocal; // Ray lies in the plane
+        } else {
+            return make_float3(0, 0, 0); // No intersection
+        }
+    }
+
+    float t = (zMean - oLocal.z) / dLocal.z; // Solve for t
+    // float3 intersectionPointLocal = oLocal + t * dLocal; // Compute intersection point
+
+	float3 intersection = make_float3(oLocal.x + t * dLocal.x, 
+                                      oLocal.y + t * dLocal.y, 
+                                      oLocal.z + t * dLocal.z);
+
+	return intersection;
+
+
+}
+
+__device__ glm::vec3 computeColorFromD(int idx, const float3 d, float4 conic, const float* texture, bool* clamped)
+{
+	float quadratic_form = d.x * d.x * conic.x + d.y * d.y * conic.y;
+	float zz = (1 - quadratic_form) * conic.z; 
+	float z = sqrt(max(0.0f, zz));
+
+
+	float length = sqrt(d.x * d.x + d.y * d.y + zz);
 	float x, y;
-	
-	if (length != 0.0f) {
-		x = d.x / length;
-		y = d.y / length;
-	} else {
-		x = 0.0f;
-		y = 0.0f;
-	}
-	
-	
-	length = sqrt(z*z + x * x + y * y);
-	
 	
 	if (length != 0.0f) {
 		x = d.x / length;
 		y = d.y / length;
 		z = z / length;
 	} else {
-		// Handle the zero-length case, perhaps default to z-axis.
 		x = 0.0f;
 		y = 0.0f;
-		z = 1.0f;
+		z = 1.0;
 	}
+	
+	
+	// length = sqrt(z*z + x * x + y * y);
+	
+	
+	// if (length != 0.0f) {
+	// 	x = d.x / length;
+	// 	y = d.y / length;
+	// 	z = z / length;
+	// } else {
+	// 	// Handle the zero-length case, perhaps default to z-axis.
+	// 	x = 0.0f;
+	// 	y = 0.0f;
+	// 	z = 1.0f;
+	// }
 	
 
 	// float z = 0.0000001f;
@@ -65,6 +210,13 @@ __device__ glm::vec3 computeColorFromD(int idx, const float2 d, float4 conic, co
 		sh[i].y = texture[idx + 3*i + 1]; 
 		sh[i].z = texture[idx + 3*i + 2];
 	}
+
+
+	sh[9].x = 0.5;
+	sh[9].y = 0.5;
+	sh[10].z = 0.6;
+	sh[12].x = 0.7;
+
 
 	glm::vec3 result = SH_C0 * sh[0];
 	
@@ -460,7 +612,13 @@ renderCUDA(
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
-	bool* clamped)
+	bool* clamped,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float* means3D,
+	const glm::vec3* cam_pos,
+	const glm::vec4* rotations
+	)
 {
 	// Identify current tile and associated min/max pixel range.
 	auto block = cg::this_thread_block();
@@ -540,8 +698,11 @@ renderCUDA(
 				done = true;
 				continue;
 			}
-
-			glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, d, con_o, texture, clamped);
+			float3 ray = getRayVec(pixf, W, H, viewmatrix, projmatrix);
+			float3 mean = { means3D[3 * collected_id[j]], means3D[3 * collected_id[j] + 1], means3D[3 * collected_id[j] + 2] };
+			float3 intersection = getIntersection(ray, mean, rotations[collected_id[j]], *cam_pos);
+			// printf("intersection: %f,%f,%f\n", intersection.x, intersection.y, intersection.z);
+			glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, intersection, con_o, texture, clamped);
 			pixel_count[collected_id[j]] += 1;
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
@@ -585,7 +746,12 @@ void FORWARD::render(
 	uint32_t* n_contrib,
 	const float* bg_color,
 	float* out_color,
-	bool* clamped)
+	bool* clamped,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float* means3D,
+	const glm::vec3* cam_pos,
+	const glm::vec4* rotations)
 {
 	// for (int i = 0; i < 12; i++)
 	// {
@@ -604,7 +770,12 @@ void FORWARD::render(
 		n_contrib,
 		bg_color,
 		out_color,
-		clamped);
+		clamped,
+		viewmatrix,
+		projmatrix,
+		means3D,
+		cam_pos,
+		rotations);
 			cudaError_t error = cudaGetLastError();
 	if (error != cudaSuccess) {
 		printf("CUDA error: %s\n", cudaGetErrorString(error));
