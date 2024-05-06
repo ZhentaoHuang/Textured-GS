@@ -17,8 +17,222 @@ namespace cg = cooperative_groups;
 
 
 
-__device__ void computeColorFromD(int idx, const float2 d, float4 conic, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
+
+__device__ void transpose_b(float *m) {
+    float tmp;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = i + 1; j < 4; ++j) {
+            tmp = m[i * 4 + j];
+            m[i * 4 + j] = m[j * 4 + i];
+            m[j * 4 + i] = tmp;
+        }
+    }
+}
+
+
+
+__device__ float determinant_b(const float *m) {
+    return
+        m[0] * (m[5] * (m[10] * m[15] - m[11] * m[14]) -
+                m[6] * (m[9] * m[15] - m[11] * m[13]) +
+                m[7] * (m[9] * m[14] - m[10] * m[13])) -
+
+        m[4] * (m[1] * (m[10] * m[15] - m[11] * m[14]) -
+                m[2] * (m[9] * m[15] - m[11] * m[13]) +
+                m[3] * (m[9] * m[14] - m[10] * m[13])) +
+
+        m[8] * (m[1] * (m[6] * m[15] - m[7] * m[14]) -
+                m[2] * (m[5] * m[15] - m[7] * m[13]) +
+                m[3] * (m[5] * m[14] - m[6] * m[13])) -
+
+        m[12] * (m[1] * (m[6] * m[11] - m[7] * m[10]) -
+                 m[2] * (m[5] * m[11] - m[7] * m[9]) +
+                 m[3] * (m[5] * m[10] - m[6] * m[9]));
+}
+
+__device__ void adjugate_b(const float *m, float *adj) {
+    adj[0] = m[5] * (m[10] * m[15] - m[11] * m[14]) - m[6] * (m[9] * m[15] - m[11] * m[13]) + m[7] * (m[9] * m[14] - m[10] * m[13]);
+    adj[4] = -(m[1] * (m[10] * m[15] - m[11] * m[14]) - m[2] * (m[9] * m[15] - m[11] * m[13]) + m[3] * (m[9] * m[14] - m[10] * m[13]));
+    adj[8] = m[1] * (m[6] * m[15] - m[7] * m[14]) - m[2] * (m[5] * m[15] - m[7] * m[13]) + m[3] * (m[5] * m[14] - m[6] * m[13]);
+    adj[12] = -(m[1] * (m[6] * m[11] - m[7] * m[10]) - m[2] * (m[5] * m[11] - m[7] * m[9]) + m[3] * (m[5] * m[10] - m[6] * m[9]));
+
+    adj[1] = -(m[4] * (m[10] * m[15] - m[11] * m[14]) - m[6] * (m[8] * m[15] - m[11] * m[12]) + m[7] * (m[8] * m[14] - m[10] * m[12]));
+    adj[5] = m[0] * (m[10] * m[15] - m[11] * m[14]) - m[2] * (m[8] * m[15] - m[11] * m[12]) + m[3] * (m[8] * m[14] - m[10] * m[12]);
+    adj[9] = -(m[0] * (m[6] * m[15] - m[7] * m[14]) - m[2] * (m[4] * m[15] - m[7] * m[12]) + m[3] * (m[4] * m[14] - m[6] * m[12]));
+    adj[13] = m[0] * (m[6] * m[11] - m[7] * m[10]) - m[2] * (m[4] * m[11] - m[7] * m[8]) + m[3] * (m[4] * m[10] - m[6] * m[8]);
+
+    adj[2] = m[4] * (m[9] * m[15] - m[11] * m[13]) - m[5] * (m[8] * m[15] - m[11] * m[12]) + m[7] * (m[8] * m[13] - m[9] * m[12]);
+    adj[6] = -(m[0] * (m[9] * m[15] - m[11] * m[13]) - m[1] * (m[8] * m[15] - m[11] * m[12]) + m[3] * (m[8] * m[13] - m[9] * m[12]));
+    adj[10] = m[0] * (m[5] * m[15] - m[7] * m[13]) - m[1] * (m[4] * m[15] - m[7] * m[12]) + m[3] * (m[4] * m[13] - m[5] * m[12]);
+    adj[14] = -(m[0] * (m[5] * m[11] - m[7] * m[9]) - m[1] * (m[4] * m[11] - m[7] * m[8]) + m[3] * (m[4] * m[9] - m[5] * m[8]));
+
+    adj[3] = -(m[4] * (m[9] * m[14] - m[10] * m[13]) - m[5] * (m[8] * m[14] - m[10] * m[12]) + m[6] * (m[8] * m[13] - m[9] * m[12]));
+    adj[7] = m[0] * (m[9] * m[14] - m[10] * m[13]) - m[1] * (m[8] * m[14] - m[10] * m[12]) + m[2] * (m[8] * m[13] - m[9] * m[12]);
+    adj[11] = -(m[0] * (m[5] * m[14] - m[6] * m[13]) - m[1] * (m[4] * m[14] - m[6] * m[12]) + m[2] * (m[4] * m[13] - m[5] * m[12]));
+    adj[15] = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[1] * (m[4] * m[10] - m[6] * m[8]) + m[2] * (m[4] * m[9] - m[5] * m[8]);
+}
+
+
+
+
+__device__ void invertMatrix_b(const float *mat, float *invMat) {
+    float det = determinant_b(mat);
+    if (fabs(det) < 1e-6) {
+        // Matrix is singular or nearly singular, handle this case in your application
+		printf("abnormal!!!!!\n\n\n");
+        return;
+    }
+
+    float adj[16];
+    adjugate_b(mat, adj);
+
+    float invDet = 1.0 / det;
+    for (int i = 0; i < 16; ++i) {
+        invMat[i] = adj[i] * invDet;
+    }
+}
+
+__device__ void invertAndTransposeMatrix_b(const float *mat, float *invMat) {
+    invertMatrix_b(mat, invMat);
+    transpose_b(invMat);  // Transpose the matrix to convert between row-major and column-major
+}
+
+
+__device__ float3 getRayVec_b(float2 pix, int W, int H, const float* viewMatrix, const float* projMatrix, glm::vec3 campos, float3 mean, const glm::vec4 rot)
 {
+    // Convert pixel coordinates to normalized device coordinates (NDC)
+    float ndcX = 2.0f * ((pix.x + 0.5f) / W) - 1.0f;
+    float ndcY = 2.0f * ((pix.y + 0.5f) / H) - 1.0f;
+
+    // Define point in clip coordinates as float4 for handling perspective division
+    float4 clipCoords = make_float4(ndcX, ndcY, -0.01f, 1.0f);  // w = 1.0f for perspective division
+	// float real_viewMatrix[16];
+
+	// for (int i = 0; i < 16; i++)
+	// {
+	// 	real_viewMatrix[i] = viewMatrix[i];
+	// }
+	// real_viewMatrix[3] = -campos.x;
+	// real_viewMatrix[7] = -campos.y;
+	// real_viewMatrix[11] = -campos.z;
+
+    // Inverse matrices
+    float invProj[16], invView[16];
+    invertAndTransposeMatrix_b(projMatrix, invProj);
+    invertMatrix_b(viewMatrix, invView);
+
+	// printf("Projection Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f], View Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+    //    projMatrix[0], projMatrix[1], projMatrix[2], projMatrix[3],
+    //    projMatrix[4], projMatrix[5], projMatrix[6], projMatrix[7],
+    //    projMatrix[8], projMatrix[9], projMatrix[10], projMatrix[11],
+    //    projMatrix[12], projMatrix[13], projMatrix[14], projMatrix[15],
+    //    invProj[0], invProj[1], invProj[2], invProj[3],
+    //    invProj[4], invProj[5], invProj[6], invProj[7],
+    //    invProj[8], invProj[9], invProj[10], invProj[11],
+    //    invProj[12], invProj[13], invProj[14], invProj[15]);
+
+	// float4 meanWorld = transformPoint4x4(mean , projMatrix);
+	// float3 mean3d = {meanWorld.x/meanWorld.w, meanWorld.y/meanWorld.w, meanWorld.z/meanWorld.w};
+	// float2 point_image = { ndc2Pix(mean3d.x, W), ndc2Pix(mean3d.y, H) };
+
+	// float2 ndc = {2.0f * ((point_image.x + 0.5f) / W) - 1.0f, 2.0f * ((point_image.y + 0.5f) / H) - 1.0f};
+	// float4 clip = make_float4(ndc.x, ndc.y, -0.01f, 1.0f);  // w = 1.0f for perspective division
+	// float4 world = transformPoint4x4(make_float3(clipCoords.x, clipCoords.y, clipCoords.z), invProj);
+	// float3 result = make_float3(world.x/world.w, world.y/world.w, world.z/world.w);
+	// printf("Point Image: (%.2f, %.2f), Original: (%.2f, %.2f, %.2f), Recovered: (%.2f, %.2f, %.2f)\n",
+    //    point_image.x, point_image.y, mean.x, mean.y, mean.z, result.x, result.y, result.z);
+
+	
+    // Transform to camera space using the inverse projection matrix
+    // float4 worldCoords = transformPoint4x4(make_float3(clipCoords.x, clipCoords.y, clipCoords.z), invProj);
+	float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
+	// float norm_cam = sqrt(camCoords.x * camCoords.x + camCoords.y * camCoords.y + camCoords.z * camCoords.z);
+	camCoords = {camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1};
+	float3 realVector = {camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z};
+	float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
+	float4 worldCoords = transformFloat4_4x4(camCoords, invView);
+
+	// Normalize to ensure it's a direction vector
+    float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
+    // float norm = sqrt(rayDirection.x * rayDirection.x + rayDirection.y * rayDirection.y + rayDirection.z * rayDirection.z);
+    // rayDirection = make_float3(rayDirection.x / norm, rayDirection.y / norm, rayDirection.z / norm);
+	// Minus campos
+
+	if (projMatrix[0] - 0.937958 < 0.00001f && projMatrix[0] - 0.937958 > -0.00001f && pix.x < 348 && pix.x >346 && pix.y < 266 && pix.y > 264)
+	{
+
+	
+	//  printf("Pixel: (%.2f, %.2f), clipCoords: (%.4f, %.4f, %.4f, %.4f),campos: (%.4f, %.4f, %.4f), camCoords: (%.4f, %.4f, %.4f, %.4f), "
+    //        "World: (%.4f, %.4f, %.4f, %.4f), Ray: (%.4f, %.4f, %.4f), proj[0]: %f, rot: (%.4f, %.4f, %.4f, %.4f), mean: (%.4f, %.4f, %.4f)\n",
+    //        pix.x, pix.y, clipCoords.x, clipCoords.y, clipCoords.z, clipCoords.w,campos.x, campos.y, campos.z, camCoords.x, camCoords.y, camCoords.z, camCoords.w,
+    //        worldCoords.x, worldCoords.y, worldCoords.z, worldCoords.w,
+    //        rayDirection.x, rayDirection.y, rayDirection.z, projMatrix[0], rot.x, rot.y, rot.z, rot.w, mean.x, mean.y, mean.z);
+
+	// 	   	printf("Projection Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f], inv Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+    //    projMatrix[0], projMatrix[1], projMatrix[2], projMatrix[3],
+    //    projMatrix[4], projMatrix[5], projMatrix[6], projMatrix[7],
+    //    projMatrix[8], projMatrix[9], projMatrix[10], projMatrix[11],
+    //    projMatrix[12], projMatrix[13], projMatrix[14], projMatrix[15],
+    //    invProj[0], invProj[1], invProj[2], invProj[3],
+    //    invProj[4], invProj[5], invProj[6], invProj[7],
+    //    invProj[8], invProj[9], invProj[10], invProj[11],
+    //    invProj[12], invProj[13], invProj[14], invProj[15]);
+	}
+    return rayDirection;
+}
+
+
+
+// __device__ float3 mat3x3_mul_vec3(float R[9], float3 v) {
+//     return make_float3(
+//         R[0] * v.x + R[3] * v.y + R[6] * v.z,
+//         R[1] * v.x + R[4] * v.y + R[7] * v.z,
+//         R[2] * v.x + R[5] * v.y + R[8] * v.z
+//     );
+// }
+
+
+__device__ float3 getIntersection_b(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos) {
+    float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
+    float r = rot.x;
+    float x = rot.y;
+    float y = rot.z;
+    float z = rot.w;
+    float R[9] = {
+        1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
+        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
+        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
+    };
+
+    // Assuming R transforms from local to world, use transpose for world to local
+    // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
+    float3 oLocal = transformR_T(o_t, R); // new center in local space
+    float3 dLocal = transformR_T(ray, R); // new direction in local space
+    float zMean = 0;
+
+    if (fabs(dLocal.z) < 1e-6) { // Check if the ray is parallel to the plane
+        if (fabs(oLocal.z - zMean) < 1e-6) {
+            return oLocal; // Ray lies in the plane
+        } else {
+            return make_float3(0, 0, 0); // No intersection
+        }
+    }
+    float t = (zMean - oLocal.z) / dLocal.z; // Solve for t
+    float3 intersection = make_float3(oLocal.x + t * dLocal.x,
+                                      oLocal.y + t * dLocal.y,
+                                      oLocal.z + t * dLocal.z);
+
+    return intersection;
+}
+
+
+
+
+__device__ void computeColorFromD(int idx, const float3 d, glm::vec3 conic, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
+{
+
+
+
 	int max_coeffs = idx / 48;
 	int deg = 3;
 	
@@ -44,35 +258,17 @@ __device__ void computeColorFromD(int idx, const float2 d, float4 conic, const f
 	// 	z = 1.0f;
 	// }
 
-	float quadratic_form = d.x * d.x * conic.x + d.y * d.y * conic.z;
-	// The second version use length as z, then normalize.
-	float z = sqrt(quadratic_form);
-	float length = sqrt(d.x * d.x + d.y * d.y);
-	float x, y;
-	
-	if (length != 0.0f) {
-		x = d.x / length;
-		y = d.y / length;
-	} else {
-		x = 0.0f;
-		y = 0.0f;
-	}
-	
-	
-	length = sqrt(z*z + x * x + y * y);
-	
-	
-	if (length != 0.0f) {
-		x = d.x / length;
-		y = d.y / length;
-		z = z / length;
-	} else {
-		// Handle the zero-length case, perhaps default to z-axis.
-		x = 0.0f;
-		y = 0.0f;
-		z = 1.0f;
-	}
-	
+	float gs_x = d.x* (1/ conic.x);
+	float gs_y = d.y* (1/ conic.y);
+	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
+
+	float phi = atan2(gs_y, gs_x);
+	float ray_l = sqrt(gs_x * gs_x + gs_y * gs_y);
+	float theta = acos(max(-1.0f, min(1.0f, ray_l / 1)));
+
+	float x = sin(theta) * cos(phi);
+	float y = sin(theta) * sin(phi);
+	float z = cos(theta);  // Corrected from cos(phi) to cos(theta)
 	
 	// printf("x: %f, y: %f, z:%f.", x, y, z);
 
@@ -717,7 +913,13 @@ renderCUDA(
 	float* __restrict__ dL_dopacity,
 	float* __restrict__ dL_dcolors,
 	float* __restrict__ dL_dtext,
-	const bool* clamped)
+	const bool* clamped,
+	const float* viewmatrix,
+	const float* projmatrix,
+	const float3* means3D,
+	const glm::vec3* cam_pos,
+	const glm::vec4* rotations,
+	const glm::vec3* scales)
 {
 	// We rasterize again. Compute necessary block info.
 	auto block = cg::this_thread_block();
@@ -843,7 +1045,11 @@ renderCUDA(
 				
 				
 			}
-			computeColorFromD(global_id * 48, d, con_o, texture, tmp, dL_dtext, clamped);
+			float3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
+			float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
+			
+			float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
+			computeColorFromD(global_id * 48, intersection, scales[collected_id[j]], texture, tmp, dL_dtext, clamped);
 			// the gradients are needed for every pixel of the Gaussian
 			// computeColorFromD(int idx, const float* textures, dchannel_dcolor * dL_dchannel, glm::vec3* dL_dtext);
 			dL_dalpha *= T;
@@ -963,7 +1169,13 @@ void BACKWARD::render(
 	float* dL_dopacity,
 	float* dL_dcolors,
 	float* dL_dtext,
-	const bool* clamped)
+	const bool* clamped,
+		const float* viewmatrix,
+	const float* projmatrix,
+	const float3* means3D,
+	const glm::vec3* cam_pos,
+	const glm::vec4* rotations,
+	const glm::vec3* scales)
 {
 	renderCUDA<NUM_CHANNELS> << <grid, block >> >(
 		ranges,
@@ -982,6 +1194,11 @@ void BACKWARD::render(
 		dL_dopacity,
 		dL_dcolors,
 		dL_dtext,
-		clamped
-		);
+		clamped,
+		viewmatrix,
+		projmatrix,
+		means3D,
+		cam_pos,
+	rotations,
+	scales);
 }

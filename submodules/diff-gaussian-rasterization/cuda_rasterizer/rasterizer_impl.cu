@@ -347,7 +347,8 @@ int CudaRasterizer::Rasterizer::forward(
 		viewmatrix, projmatrix,
 		means3D,
 		(glm::vec3*)cam_pos,
-		(glm::vec4*)rotations), debug)
+		(glm::vec4*)rotations,
+		(glm::vec3*) scales), debug)
 
 	return num_rendered;
 }
@@ -425,7 +426,13 @@ void CudaRasterizer::Rasterizer::backward(
 		dL_dopacity,
 		dL_dcolor, 
 		dL_dtext,
-		geomState.clamped), debug)
+		geomState.clamped,
+		viewmatrix,
+	projmatrix,
+	(float3*)means3D,
+	(glm::vec3*)campos,
+	(glm::vec4*)rotations,
+	(glm::vec3*)scales), debug)
 
 	// Take care of the rest of preprocessing. Was the precomputed covariance
 	// given to us or a scales/rot pair? If precomputed, pass that. If not,

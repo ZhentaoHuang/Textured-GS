@@ -43,6 +43,34 @@ __forceinline__ __device__ float ndc2Pix(float v, int S)
 	return ((v + 1.0) * S - 1.0) * 0.5;
 }
 
+__forceinline__ __device__ float4 transformFloat4_4x4(const float4& p, const float* matrix)
+{
+	float4 transformed = {
+		matrix[0] * p.x + matrix[4] * p.y + matrix[8] * p.z + matrix[12] * p.w,
+		matrix[1] * p.x + matrix[5] * p.y + matrix[9] * p.z + matrix[13] * p.w,
+		matrix[2] * p.x + matrix[6] * p.y + matrix[10] * p.z + matrix[14] * p.w,
+		matrix[3] * p.x + matrix[7] * p.y + matrix[11] * p.z + matrix[15] * p.w
+	};
+	return transformed;
+}
+
+
+__forceinline__ __device__ float3 transformR(float3 v, float R[9]) {
+    return make_float3(
+        R[0]*v.x + R[1]*v.y + R[2]*v.z,  // Notice the use of matrix elements
+        R[3]*v.x + R[4]*v.y + R[5]*v.z,
+        R[6]*v.x + R[7]*v.y + R[8]*v.z
+    );
+}
+
+__forceinline__ __device__ float3 transformR_T(float3 v, const float R[9]) {
+    return make_float3(
+        R[0] * v.x + R[3] * v.y + R[6] * v.z,  // Column-major matrix application
+        R[1] * v.x + R[4] * v.y + R[7] * v.z,
+        R[2] * v.x + R[5] * v.y + R[8] * v.z
+    );
+}
+
 __forceinline__ __device__ void getRect(const float2 p, int max_radius, uint2& rect_min, uint2& rect_max, dim3 grid)
 {
 	rect_min = {

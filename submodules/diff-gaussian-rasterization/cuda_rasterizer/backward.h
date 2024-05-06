@@ -38,7 +38,13 @@ namespace BACKWARD
 		float* dL_dopacity,
 		float* dL_dcolors,
 		float* dL_dtext,
-		const bool* clamped);
+		const bool* clamped,
+		const float* viewmatrix,
+	const float* projmatrix,
+	const float3* means3D,
+	const glm::vec3* cam_pos,
+	const glm::vec4* rotations,
+	const glm::vec3* scales);
 
 	void preprocess(
 		int P, int D, int M,
