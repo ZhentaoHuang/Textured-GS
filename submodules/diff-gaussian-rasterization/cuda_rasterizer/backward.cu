@@ -258,8 +258,8 @@ __device__ void computeColorFromD(int idx, const float3 d, glm::vec3 conic, cons
 	// 	z = 1.0f;
 	// }
 
-	float gs_x = d.x* (1/ conic.x);
-	float gs_y = d.y* (1/ conic.y);
+	float gs_x = d.x* (1/sqrt(conic.x));
+	float gs_y = d.y* (1/sqrt( conic.y));
 	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
 
 	float phi = atan2(gs_y, gs_x);
@@ -372,10 +372,10 @@ __device__ void computeColorFromD(int idx, const float3 d, glm::vec3 conic, cons
 
 
 
-__device__ void computeColorFromD1(int idx, const float2 d, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
+__device__ void computeColorFromD1(int idx, const float2 d, const float4 con_o ,const float* texture,glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
 {
 	int max_coeffs = idx / 48;
-	int deg = 3;
+	int deg = 2;
 	
 	glm::vec3 dL_dRGB = dL_dcolor;
 
@@ -399,6 +399,7 @@ __device__ void computeColorFromD1(int idx, const float2 d, const float* texture
 	// 	z = 1.0f;
 	// }
 
+	// The second version use length as z, then normalize.
 	float z = sqrt(d.x * d.x + d.y * d.y);
 	float length = sqrt(z*z + d.x * d.x + d.y * d.y);
 	
@@ -413,6 +414,7 @@ __device__ void computeColorFromD1(int idx, const float2 d, const float* texture
 		y = 0.0f;
 		z = 1.0f;
 	}
+
 	// printf("x: %f, y: %f, z:%f.", x, y, z);
 
 	glm::vec3 dL_dsh[16];
@@ -1050,6 +1052,7 @@ renderCUDA(
 			
 			float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
 			computeColorFromD(global_id * 48, intersection, scales[collected_id[j]], texture, tmp, dL_dtext, clamped);
+			// computeColorFromD1(global_id * 48, d, con_o, texture, tmp, dL_dtext, clamped);
 			// the gradients are needed for every pixel of the Gaussian
 			// computeColorFromD(int idx, const float* textures, dchannel_dcolor * dL_dchannel, glm::vec3* dL_dtext);
 			dL_dalpha *= T;

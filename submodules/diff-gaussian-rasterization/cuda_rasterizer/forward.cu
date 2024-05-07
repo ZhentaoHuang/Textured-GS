@@ -319,8 +319,8 @@ __device__ float3 getIntersection1(float3 ray, const float3 mean, const glm::vec
 __device__ glm::vec3 computeColorFromD(int idx, const float3 d, glm::vec3 conic, const float* texture, bool* clamped)
 {
 	
-	float gs_x = d.x* (1/ conic.x);
-	float gs_y = d.y* (1/ conic.y);
+	float gs_x = d.x* (1/sqrt(conic.x));
+	float gs_y = d.y* (1/sqrt( conic.y));
 	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
 
 	float phi = atan2(gs_y, gs_x);
@@ -346,76 +346,78 @@ __device__ glm::vec3 computeColorFromD(int idx, const float3 d, glm::vec3 conic,
 	}
 
 
-	sh[0].x = 0.79;
-	sh[0].y = 0.44;
-	sh[0].z = 0.54;
+	// sh[0].x = 0.79;
+	// sh[0].y = 0.44;
+	// sh[0].z = 0.54;
 
-	sh[1].x = 0.39;
-	sh[1].y = 0.35;
-	sh[1].z = 0.60;
+	// sh[1].x = 0.39;
+	// sh[1].y = 0.35;
+	// sh[1].z = 0.60;
 
-	sh[2].x = -0.34;
-	sh[2].y = -0.18;
-	sh[2].z = -0.27;
+	// sh[2].x = -0.34;
+	// sh[2].y = -0.18;
+	// sh[2].z = -0.27;
 
-	sh[3].x = -0.29;
-	sh[3].y = -0.60;
-	sh[3].z = 0.1;
+	// sh[3].x = -0.29;
+	// sh[3].y = -0.60;
+	// sh[3].z = 0.1;
 
-	sh[4].x = -0.11;
-	sh[4].y = -0.05;
-	sh[4].z = -0.12;
+	// sh[4].x = -0.11;
+	// sh[4].y = -0.05;
+	// sh[4].z = -0.12;
 
-	sh[5].x = -0.26;
-	sh[5].y = -0.22;
-	sh[5].z = -0.47;
+	// sh[5].x = -0.26;
+	// sh[5].y = -0.22;
+	// sh[5].z = -0.47;
 
-	sh[6].x = -0.16;
-	sh[6].y = -0.09;
-	sh[6].z = -0.15;
+	// sh[6].x = -0.16;
+	// sh[6].y = -0.09;
+	// sh[6].z = -0.15;
 
-	sh[7].x = 0.56;
-	sh[7].y = 0.21;
-	sh[7].z = 0.14;
+	// sh[7].x = 0.56;
+	// sh[7].y = 0.21;
+	// sh[7].z = 0.14;
 
-	sh[8].x = 0.21;
-	sh[8].y = -0.05;
-	sh[8].z = -0.30;
+	// sh[8].x = 0.21;
+	// sh[8].y = -0.05;
+	// sh[8].z = -0.30;
 
-	sh[9].x = 0.21;
-	sh[9].y = -0.01;
-	sh[9].z = +0.50;
+	// sh[9].x = 0.21;
+	// sh[9].y = -0.01;
+	// sh[9].z = +0.50;
 
-	sh[10].x = 0.93;
-	sh[10].y = -0.05;
-	sh[10].z = -0.30;
+	// sh[10].x = 0.93;
+	// sh[10].y = -0.05;
+	// sh[10].z = -0.30;
 
-	sh[11].x = +0.21;
-	sh[11].y = -0.05;
-	sh[11].z = -0.30;
+	// sh[11].x = +0.21;
+	// sh[11].y = -0.05;
+	// sh[11].z = -0.30;
 
-	sh[12].x = -0.21;
-	sh[12].y = -0.05;
-	sh[12].z = -0.30;
+	// sh[12].x = -0.21;
+	// sh[12].y = -0.05;
+	// sh[12].z = -0.30;
 
 
-	sh[13].x = 0.21;
-	sh[13].y = -0.05;
-	sh[13].z = +0.30;
+	// sh[13].x = 0.21;
+	// sh[13].y = -0.05;
+	// sh[13].z = +0.30;
 
-	sh[14].x = 0.21;
-	sh[14].y = -0.55;
-	sh[14].z = -0.30;
+	// sh[14].x = 0.21;
+	// sh[14].y = -0.55;
+	// sh[14].z = -0.30;
 
-	sh[15].x = 0.71;
-	sh[15].y = -0.45;
-	sh[15].z = +0.10;
+	// sh[15].x = 0.71;
+	// sh[15].y = -0.45;
+	// sh[15].z = +0.10;
 	
 
 
 	glm::vec3 result = SH_C0 * sh[0];
-	
-	result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+	if(deg > 0)
+	{
+		result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+	}
 	// printf("asd:%f,%f,%f..%f, %f, %f", sh[0].x, sh[0].y, sh[0].z, sh[1].x, sh[1].y, sh[1].z);
 	if (deg > 1)
 	{
@@ -483,12 +485,10 @@ __device__ glm::vec3 computeColorFromD1(int idx, const float2 d, float4 conic, c
 		z = 1.0f;
 	}
 
-	
-
 
 	// float z = 0.0000001f;
 	// printf("x: %f, y: %f, z:%f.", x, y, z);
-	int deg = 2;
+	int deg = 3;
 
 
 	// glm::vec3* sh = ((glm::vec3*)texture) + idx;// * max_coeffs;
@@ -503,46 +503,7 @@ __device__ glm::vec3 computeColorFromD1(int idx, const float2 d, float4 conic, c
 	}
 
 
-	sh[0].x = 0.79;
-	sh[0].y = 0.44;
-	sh[0].z = 0.54;
-
-	sh[1].x = 0.39;
-	sh[1].y = 0.35;
-	sh[1].z = 0.60;
-
-	sh[2].x = -0.34;
-	sh[2].y = -0.18;
-	sh[2].z = -0.27;
-
-	sh[3].x = -0.29;
-	sh[3].y = -0.60;
-	sh[3].z = 0.1;
-
-	sh[4].x = -0.11;
-	sh[4].y = -0.05;
-	sh[4].z = -0.12;
-
-	sh[5].x = -0.26;
-	sh[5].y = -0.22;
-	sh[5].z = -0.47;
-
-	sh[6].x = -0.16;
-	sh[6].y = -0.09;
-	sh[6].z = -0.15;
-
-	sh[7].x = 0.56;
-	sh[7].y = 0.21;
-	sh[7].z = 0.14;
-
-	sh[8].x = 0.21;
-	sh[8].y = -0.05;
-	sh[8].z = -0.30;
-
-	// sh[4].x = -0.11;
-	// sh[4].y = -0.05;
-	// sh[4].z = -0.12;
-
+	
 	glm::vec3 result = SH_C0 * sh[0];
 	
 	result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
@@ -933,7 +894,7 @@ renderCUDA(
 			float4 con_o = collected_conic_opacity[j];
 
 
-			con_o.w = 0.99;
+			// con_o.w = 0.99;
 
 
 
@@ -963,7 +924,7 @@ renderCUDA(
 			// ray.x, ray.y, ray.z, pixf.x, pixf.y, scales[collected_id[j]].x, scales[collected_id[j]].y, scales[collected_id[j]].z,intersection.x, intersection.y, intersection.z);
 			// printf("x,y : %f, %f intersection: %f,%f,%f\n", pixf.x, pixf.y,intersection.x, intersection.y, intersection.z);
 			glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, intersection, scales[collected_id[j]], texture, clamped);
-			// glm::vec3 rgb = computeColorFromD1(collected_id[j] * 48, d, con_o,texture, clamped);
+			// glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, d,texture, clamped);
 			pixel_count[collected_id[j]] += 1;
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)

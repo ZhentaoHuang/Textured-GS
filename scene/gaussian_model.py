@@ -129,7 +129,7 @@ class GaussianModel:
 
 
 
-    def create_from_pcd_masked(self, pcd: BasicPointCloud, spatial_lr_scale: float, reference_index: int=21000, num_neighbors: int = 3):
+    def create_from_pcd_masked(self, pcd: BasicPointCloud, spatial_lr_scale: float, reference_index: int=21000, num_neighbors: int = 30):
         self.spatial_lr_scale = spatial_lr_scale
         # Load and convert point cloud data to PyTorch tensors on CUDA
         fused_point_cloud = torch.tensor(np.asarray(pcd.points), dtype=torch.float).cuda()
