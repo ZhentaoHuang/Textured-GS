@@ -364,7 +364,7 @@ __device__ void computeColorFromD(int idx, const float3 d, glm::vec3 conic, cons
 
 	}
 
-
+	// printf("dL_dtext[idx + 3*i + 2]:%f, %f\n", dL_dRGB.x, dL_dRGB.z);
 
 
 }
@@ -1034,15 +1034,16 @@ renderCUDA(
 				atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
 				if(ch == 0)
 				{
-					tmp.x = dchannel_dcolor * dL_dchannel;
+					// printf("tmp.x: %f, %f\n", dL_dcolors[global_id * 3 + 0], dchannel_dcolor * dL_dchannel);
+					tmp.x = dL_dcolors[global_id * C + ch];
 				}
 				else if (ch == 1)
 				{
-					tmp.y = dchannel_dcolor * dL_dchannel;
+					tmp.y = dL_dcolors[global_id * C + ch];
 				}
 				else
 				{
-					tmp.z = dchannel_dcolor * dL_dchannel;
+					tmp.z = dL_dcolors[global_id * C + ch];
 				}
 				
 				

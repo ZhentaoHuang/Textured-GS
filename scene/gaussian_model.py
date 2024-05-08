@@ -129,7 +129,7 @@ class GaussianModel:
 
 
 
-    def create_from_pcd_masked(self, pcd: BasicPointCloud, spatial_lr_scale: float, reference_index: int=21000, num_neighbors: int = 30):
+    def create_from_pcd_masked(self, pcd: BasicPointCloud, spatial_lr_scale: float, reference_index: int=21000, num_neighbors: int = 9):
         self.spatial_lr_scale = spatial_lr_scale
         # Load and convert point cloud data to PyTorch tensors on CUDA
         fused_point_cloud = torch.tensor(np.asarray(pcd.points), dtype=torch.float).cuda()
@@ -243,7 +243,7 @@ class GaussianModel:
             {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
-            {'params': [self._texture], 'lr': training_args.feature_lr / 200000.0, "name": "texture"},
+            {'params': [self._texture], 'lr': training_args.feature_lr / 200.0, "name": "texture"},
         ]
 
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)

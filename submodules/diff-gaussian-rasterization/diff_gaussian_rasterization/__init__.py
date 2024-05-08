@@ -153,7 +153,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         pixel_count = pixel_count.squeeze(0).unsqueeze(1).unsqueeze(2) 
         # print(pixel_count.shape, grad_text.shape)
         grad_text_1 = grad_text / pixel_count
-        clamped_grad_text = torch.clamp(grad_text_1, min=-0.05, max=0.05)
+        # clamped_grad_text = torch.clamp(grad_text_1, min=-0.05, max=0.05)
 
         grads = (
             grad_means3D,
@@ -164,7 +164,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_scales,
             grad_rotations,
             grad_cov3Ds_precomp,
-            clamped_grad_text,
+            grad_text_1,
             None,
             None,
         )
