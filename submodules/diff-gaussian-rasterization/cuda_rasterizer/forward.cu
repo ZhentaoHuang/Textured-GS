@@ -321,18 +321,31 @@ __device__ glm::vec3 computeColorFromD(int idx, const float3 d, glm::vec3 conic,
 	
 	float gs_x = d.x* (1/sqrt(conic.x));
 	float gs_y = d.y* (1/sqrt( conic.y));
-	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
+	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f, gs_x:%f, gs_y: %f\n", d.x, d.y, conic.x, conic.y, gs_x, gs_y);
 
-	float phi = atan2(gs_y, gs_x);
-	float ray_l = sqrt(gs_x * gs_x + gs_y * gs_y);
-	float theta = acos(std::max(-1.0f, std::min(1.0f, ray_l / 1)));
+	float z;
+	float x = gs_x;
+	float y = gs_y;
 
-	float x = sin(theta) * cos(phi);
-	float y = sin(theta) * sin(phi);
-	float z = cos(theta);  // Corrected from cos(phi) to cos(theta)
+	float length_squared = x * x + y * y;
+	if (length_squared > 1.0f) {
+		float length = sqrt(length_squared);
+		x /= length;
+		y /= length;
+		z = 0.0f; // The z-component becomes zero as the vector lies on the xy-plane
+	} else {
+		z = sqrt(1.0f - length_squared);
+	}
+	// float phi = atan2(gs_y, gs_x);
+	// float ray_l = sqrt(gs_x * gs_x + gs_y * gs_y);
+	// float theta = acos(std::max(-1.0f, std::min(1.0f, ray_l / 1)));
+
+	// float x = sin(theta) * cos(phi);
+	// float y = sin(theta) * sin(phi);
+	// float z = cos(theta);  // Corrected from cos(phi) to cos(theta)
 
 	int deg = 3;
-	
+	// printf("x,y,z: %f, %f, %f, conic_x:%f, conic_y:%f, gs_x:%f, gs_y: %f\n", x, y, z, conic.x, conic.y, gs_x, gs_y);
 	// printf("x,y,z: %f, %f, %f\n", x, y, z);
 
 	// glm::vec3* sh = ((glm::vec3*)texture) + idx;// * max_coeffs;
