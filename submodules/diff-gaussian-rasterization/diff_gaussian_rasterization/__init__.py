@@ -29,6 +29,7 @@ def rasterize_gaussians(
     cov3Ds_precomp,
     texture,
     pixel_count,
+    sig_out,
     raster_settings,
 ):
     return _RasterizeGaussians.apply(
@@ -42,6 +43,7 @@ def rasterize_gaussians(
         cov3Ds_precomp,
         texture,
         pixel_count,
+        sig_out,
         raster_settings,
     )
 
@@ -59,6 +61,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         cov3Ds_precomp,
         texture,
         pixel_count,
+        sig_out,
         raster_settings,
     ):
 
@@ -74,6 +77,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             cov3Ds_precomp,
             texture,
             pixel_count,
+            sig_out,
             raster_settings.viewmatrix,
             raster_settings.projmatrix,
             raster_settings.tanfovx,
@@ -102,7 +106,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
-        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, pixel_count)
+        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, pixel_count, sig_out)
         return color, radii
 
     @staticmethod
@@ -111,8 +115,14 @@ class _RasterizeGaussians(torch.autograd.Function):
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, pixel_count = ctx.saved_tensors
+        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, pixel_count, sig_out = ctx.saved_tensors
         # print(pixel_count)
+        pixel_count[pixel_count == 0] = 1.0
+        
+        
+        # print("shape",sig_out.shape, pixel_count.shape)
+        pixel_count = pixel_count.unsqueeze(1)
+        sig_out = sig_out / pixel_count
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
                 means3D, 
@@ -123,6 +133,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 raster_settings.scale_modifier, 
                 cov3Ds_precomp, 
                 texture,
+                sig_out,
                 raster_settings.viewmatrix, 
                 raster_settings.projmatrix, 
                 raster_settings.tanfovx, 
@@ -149,11 +160,11 @@ class _RasterizeGaussians(torch.autograd.Function):
         else:
              grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_text = _C.rasterize_gaussians_backward(*args)
         # grad_text = torch.zeros_like(texture)
-        pixel_count[pixel_count == 0] = 1.0
-        pixel_count = pixel_count.squeeze(0).unsqueeze(1).unsqueeze(2) 
-        # print(pixel_count.shape, grad_text.shape)
+        # print("shape",grad_text.shape, pixel_count.shape)
+        pixel_count = pixel_count.unsqueeze(2) 
         grad_text_1 = grad_text / pixel_count
-        # clamped_grad_text = torch.clamp(grad_text_1, min=-0.05, max=0.05)
+        # print("sig_out: ",sig_out)
+        # clamped_grad_text = torch.clamp(grad_text, min=-0.05, max=0.05)
 
         grads = (
             grad_means3D,
@@ -165,6 +176,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_rotations,
             grad_cov3Ds_precomp,
             grad_text_1,
+            None,
             None,
             None,
         )
@@ -202,7 +214,7 @@ class GaussianRasterizer(nn.Module):
             
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None, pixel_count = None):
+    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None, pixel_count = None, sig_out=None):
         
         raster_settings = self.raster_settings
 
@@ -236,6 +248,7 @@ class GaussianRasterizer(nn.Module):
             cov3D_precomp,
             texture,
             pixel_count,
+            sig_out,
             raster_settings
         )
 

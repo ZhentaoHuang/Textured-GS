@@ -54,6 +54,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     opacity = pc.get_opacity
     texture = pc.get_texture
     pixel_count = pc.pixel_count
+    sig_out = pc.sig_out
 
     # If precomputed 3d covariance is provided, use it. If not, then it will be computed from
     # scaling / rotation by the rasterizer.
@@ -93,7 +94,8 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         rotations = rotations,
         cov3D_precomp = cov3D_precomp,
         texture = texture,
-        pixel_count = pixel_count)
+        pixel_count = pixel_count,
+        sig_out = sig_out)
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.

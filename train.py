@@ -33,7 +33,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
-    scene = Scene(dataset, gaussians)
+    scene = Scene(dataset, gaussians, is_training_from_half= True)
     gaussians.training_setup(opt)
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
@@ -72,6 +72,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
 
         # Every 1000 its we increase the levels of SH up to a maximum degree
         if iteration % 1000 == 0:
+            # gaussians.oneupSHdegree()
+            # print("xyz:", gaussians.get_xyz, "opa: ", gaussians.get_texture)
+            # print(gaussians.xyz_scheduler_args)
+            for param_group in gaussians.optimizer.param_groups:
+                print(f"Epoch {iteration}: Group '{param_group['name']}' Learning Rate: {param_group['lr']}")
+    
+        if iteration % 35000 == 0:
             gaussians.oneupSHdegree()
 
         # Pick a random Camera
@@ -91,7 +98,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         gt_image = viewpoint_cam.original_image.cuda()
         Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
-        
+        # loss = Ll1
         loss.backward()
         # torch.nn.utils.clip_grad_value_(gaussians._texture, clip_value=0.002)
         # params_dict = {id(param): {"label": f"1{name}\n{str(param.size())}\nGrad: {param.requires_grad}"} 
@@ -129,14 +136,14 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration < opt.densify_until_iter:
                 # Keep track of max radii in image-space for pruning
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+                # gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
                 # if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                 #     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                 #     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                 
-                if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
-                    gaussians.reset_opacity()
+                # if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
+                #     gaussians.reset_opacity()
 
             # Optimizer step
             if iteration < opt.iterations:

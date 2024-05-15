@@ -30,6 +30,7 @@ namespace BACKWARD
 		const float4* conic_opacity,
 		const float* colors,
 		const float* texture,
+		const float* sig_out,
 		const float* final_Ts,
 		const uint32_t* n_contrib,
 		const float* dL_dpixels,
@@ -39,12 +40,15 @@ namespace BACKWARD
 		float* dL_dcolors,
 		float* dL_dtext,
 		const bool* clamped,
+		const int D,
 		const float* viewmatrix,
 	const float* projmatrix,
 	const float3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
-	const glm::vec3* scales);
+	const glm::vec3* scales,
+	glm::vec3* dL_dscale,
+	glm::vec4* dL_drot);
 
 	void preprocess(
 		int P, int D, int M,

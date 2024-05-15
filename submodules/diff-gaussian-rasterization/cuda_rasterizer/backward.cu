@@ -222,60 +222,65 @@ __device__ float3 getIntersection_b(float3 ray, const float3 mean, const glm::ve
                                       oLocal.y + t * dLocal.y,
                                       oLocal.z + t * dLocal.z);
 
+	if(t > 0)
+	{
+		intersection.x = -intersection.x;
+		intersection.y = -intersection.y;
+		intersection.z = -intersection.z;
+	}
+
     return intersection;
 }
 
 
 
 
-__device__ void computeColorFromD(int idx, const float3 d, glm::vec3 conic, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
+__device__ void computeColorFromD(int idx, const float3 intersection, glm::vec3 scale, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped, glm::vec3* dL_dscales, const float* sig_out, const int deg)
 {
 
 
 
-	int max_coeffs = idx / 48;
-	int deg = 3;
+	int max_coeffs = 48;
+	// int deg = 1;
 	
 	glm::vec3 dL_dRGB = dL_dcolor;
 
-	dL_dRGB.x *= clamped[3*max_coeffs + 0] ? 0 : 1;
-	dL_dRGB.y *= clamped[3*max_coeffs + 1] ? 0 : 1;
-	dL_dRGB.z *= clamped[3*max_coeffs + 2] ? 0 : 1;
+	// 3 * idx?????
+	// dL_dRGB.x *= clamped[3*idx + 0] ? 0 : 1;
+	// dL_dRGB.y *= clamped[3*idx + 1] ? 0 : 1;
+	// dL_dRGB.z *= clamped[3*idx + 2] ? 0 : 1;
 
-	// The first version only using x and y. The second version should convert x,y to phi and theta.
-	// float z = 0.5;
-	// float length = sqrt(d.x * d.x + d.y * d.y + z * z);
 
-	// float x, y;
-	// if (length > 1e-8) {
-	// 	x = d.x / length;
-	// 	y = d.y / length;
-	// 	z = z / length;
-	// } else {
-	// 	// Handle the zero-length case, perhaps default to z-axis.
-	// 	x = 0.0f;
-	// 	y = 0.0f;
-	// 	z = 1.0f;
-	// }
+	dL_dRGB.x *= sig_out[3*idx + 0] * (1 - sig_out[3*idx + 0]) ;
+	dL_dRGB.y *= sig_out[3*idx + 1] * (1 - sig_out[3*idx + 1]);
+	dL_dRGB.z *= sig_out[3*idx + 2] * (1 - sig_out[3*idx + 2]);
 
-	float gs_x = d.x* (1/sqrt(conic.x));
-	float gs_y = d.y* (1/sqrt( conic.y));
+	// glm::vec3 dRGBdx(0, 0, 0);
+	// glm::vec3 dRGBdy(0, 0, 0);
+	// glm::vec3 dRGBdz(0, 0, 0);
+
+
+
+	float x = intersection.x* (1/(1*sqrt(scale.x) + 0.3f));
+	float y = intersection.y* (1/(1*sqrt(scale.x) + 0.3f));
 	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
 
-	// float phi = atan2(gs_y, gs_x);
-	// float ray_l = sqrt(gs_x * gs_x + gs_y * gs_y);
+	// float phi = atan2(x, y);
+	// float ray_l = sqrt(x * x + y * y);
 	// float theta = acos(max(-1.0f, min(1.0f, ray_l / 1)));
 
-	// float x = sin(theta) * cos(phi);
-	// float y = sin(theta) * sin(phi);
+	// x = sin(theta) * cos(phi);
+	//  y = sin(theta) * sin(phi);
 	// float z = cos(theta);  // Corrected from cos(phi) to cos(theta)
 
 	float z;
-	float x = gs_x;
-	float y = gs_y;
+	// float x = gs_x;
+	// float y = gs_y;
 
 	float length_squared = x * x + y * y;
-	if (length_squared > 1.0f) {
+	bool outside_unit_circle = length_squared > 1.0f;
+	if (outside_unit_circle) {
+		// return;
 		float length = sqrt(length_squared);
 		x /= length;
 		y /= length;
@@ -283,7 +288,15 @@ __device__ void computeColorFromD(int idx, const float3 d, glm::vec3 conic, cons
 	} else {
 		z = sqrt(1.0f - length_squared);
 	}
-	// printf("x: %f, y: %f, z:%f.", x, y, z);
+
+	glm::vec3 sh[16];
+
+	for (int i = 0; i < (deg+1) * (deg+1); i++)
+	{
+		sh[i].x = texture[idx*max_coeffs + 3*i];
+		sh[i].y = texture[idx*max_coeffs + 3*i + 1]; 
+		sh[i].z = texture[idx*max_coeffs + 3*i + 2];
+	}
 
 	glm::vec3 dL_dsh[16];
 
@@ -371,161 +384,47 @@ __device__ void computeColorFromD(int idx, const float3 d, glm::vec3 conic, cons
 	for (int i = 0; i < (deg+1)*(deg+1); i++)
 	{
 
-		dL_dtext[idx + 3*i] = dL_dsh[i].x;
-		dL_dtext[idx + 3*i + 1] = dL_dsh[i].y;
-		dL_dtext[idx + 3*i + 2] = dL_dsh[i].z;
+		dL_dtext[idx*max_coeffs + 3*i] += dL_dsh[i].x;
+		dL_dtext[idx*max_coeffs + 3*i + 1] += dL_dsh[i].y;
+		dL_dtext[idx*max_coeffs + 3*i + 2] += dL_dsh[i].z;
 
 	}
 
-	// printf("dL_dtext[idx + 3*i + 2]:%f, %f\n", dL_dRGB.x, dL_dRGB.z);
+    // Compute forward values of x, y, z as in the original function
+    // float x = intersection.x * (1/sqrt(scale.x));
+    // float y = intersection.y * (1/sqrt(scale.y));
+    // float length_squared = x * x + y * y;
+    // float z = (length_squared > 1.0f) ? 0.0f : sqrt(1.0f - length_squared);
+
+    // // Compute gradients of x, y, z with respect to scale
+    // float dx_dscalex = -0.5 * intersection.x / (scale.x * sqrt(scale.x));
+    // float dy_dscaley = -0.5 * intersection.y / (scale.y * sqrt(scale.y));
+    // float dz_dscalex = (length_squared > 1.0f) ? 0 : -0.5 / sqrt(1.0f - length_squared) * 2 * x * dx_dscalex;
+    // float dz_dscaley = (length_squared > 1.0f) ? 0 : -0.5 / sqrt(1.0f - length_squared) * 2 * y * dy_dscaley;
+
+    // // Compute gradients of the loss with respect to scale
+	// glm::vec3 dLdscale;
+	// // dL_dx = dL_dRGB * dRGB_dx + 
+	// float dL_dx = dL_dRGB.x * dRGBdx.x + dL_dRGB.y * dRGBdx.y + dL_dRGB.z * dRGBdx.z;
+	// float dL_dy = dL_dRGB.x * dRGBdy.x + dL_dRGB.y * dRGBdy.y + dL_dRGB.z * dRGBdy.z;
+	// float dL_dz = dL_dRGB.x * dRGBdz.x + dL_dRGB.y * dRGBdz.y + dL_dRGB.z * dRGBdz.z;
+    // dLdscale.x = dL_dx * dx_dscalex + dL_dz * dz_dscalex;
+    // dLdscale.y = dL_dy * dy_dscaley + dL_dz * dz_dscaley;
+	// dLdscale.z = 0;
+
+
+	// glm::vec3 dL_dscale = dL_dscales[idx];
+	// dL_dscale.x = dL_dx * dx_dscalex + dL_dz * dz_dscalex;
+	// dL_dscale.y = dL_dy * dy_dscaley + dL_dz * dz_dscaley;
+
+	// glm::vec3* dL_dscale = dL_dscales + idx;
+	// printf(":%f, %f %f, %f\n", dL_dscale->x, dL_dx, dx_dscalex, dL_dRGB.x );
 
 
 }
 
 
 
-
-__device__ void computeColorFromD1(int idx, const float2 d, const float4 con_o ,const float* texture,glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped)
-{
-	int max_coeffs = idx / 48;
-	int deg = 2;
-	
-	glm::vec3 dL_dRGB = dL_dcolor;
-
-	dL_dRGB.x *= clamped[3*max_coeffs + 0] ? 0 : 1;
-	dL_dRGB.y *= clamped[3*max_coeffs + 1] ? 0 : 1;
-	dL_dRGB.z *= clamped[3*max_coeffs + 2] ? 0 : 1;
-
-	// The first version only using x and y. The second version should convert x,y to phi and theta.
-	// float z = 0.5;
-	// float length = sqrt(d.x * d.x + d.y * d.y + z * z);
-
-	// float x, y;
-	// if (length > 1e-8) {
-	// 	x = d.x / length;
-	// 	y = d.y / length;
-	// 	z = z / length;
-	// } else {
-	// 	// Handle the zero-length case, perhaps default to z-axis.
-	// 	x = 0.0f;
-	// 	y = 0.0f;
-	// 	z = 1.0f;
-	// }
-
-	// The second version use length as z, then normalize.
-	float z = sqrt(d.x * d.x + d.y * d.y);
-	float length = sqrt(z*z + d.x * d.x + d.y * d.y);
-	
-	float x, y;
-	if (length != 0.0f) {
-		x = d.x / length;
-		y = d.y / length;
-		z = z / length;
-	} else {
-		// Handle the zero-length case, perhaps default to z-axis.
-		x = 0.0f;
-		y = 0.0f;
-		z = 1.0f;
-	}
-
-	// printf("x: %f, y: %f, z:%f.", x, y, z);
-
-	glm::vec3 dL_dsh[16];
-
-
-	dL_dsh[0] = SH_C0 * dL_dRGB;
-
-	if (deg > 0)
-	{
-		float dRGBdsh1 = -SH_C1 * y;
-		float dRGBdsh2 = SH_C1 * z;
-		float dRGBdsh3 = -SH_C1 * x;
-		dL_dsh[1] = dRGBdsh1 * dL_dRGB;
-		dL_dsh[2] = dRGBdsh2 * dL_dRGB;
-		dL_dsh[3] = dRGBdsh3 * dL_dRGB;
-
-		// dRGBdx = -SH_C1 * sh[3];
-		// dRGBdy = -SH_C1 * sh[1];
-		// dRGBdz = SH_C1 * sh[2];
-
-		if (deg > 1)
-		{
-			float xx = x * x, yy = y * y, zz = z * z;
-			float xy = x * y, yz = y * z, xz = x * z;
-
-			float dRGBdsh4 = SH_C2[0] * xy;
-			float dRGBdsh5 = SH_C2[1] * yz;
-			float dRGBdsh6 = SH_C2[2] * (2.f * zz - xx - yy);
-			float dRGBdsh7 = SH_C2[3] * xz;
-			float dRGBdsh8 = SH_C2[4] * (xx - yy);
-			dL_dsh[4] = dRGBdsh4 * dL_dRGB;
-			dL_dsh[5] = dRGBdsh5 * dL_dRGB;
-			dL_dsh[6] = dRGBdsh6 * dL_dRGB;
-			dL_dsh[7] = dRGBdsh7 * dL_dRGB;
-			dL_dsh[8] = dRGBdsh8 * dL_dRGB;
-
-			// dRGBdx += SH_C2[0] * y * sh[4] + SH_C2[2] * 2.f * -x * sh[6] + SH_C2[3] * z * sh[7] + SH_C2[4] * 2.f * x * sh[8];
-			// dRGBdy += SH_C2[0] * x * sh[4] + SH_C2[1] * z * sh[5] + SH_C2[2] * 2.f * -y * sh[6] + SH_C2[4] * 2.f * -y * sh[8];
-			// dRGBdz += SH_C2[1] * y * sh[5] + SH_C2[2] * 2.f * 2.f * z * sh[6] + SH_C2[3] * x * sh[7];
-
-			if (deg > 2)
-			{
-				float dRGBdsh9 = SH_C3[0] * y * (3.f * xx - yy);
-				float dRGBdsh10 = SH_C3[1] * xy * z;
-				float dRGBdsh11 = SH_C3[2] * y * (4.f * zz - xx - yy);
-				float dRGBdsh12 = SH_C3[3] * z * (2.f * zz - 3.f * xx - 3.f * yy);
-				float dRGBdsh13 = SH_C3[4] * x * (4.f * zz - xx - yy);
-				float dRGBdsh14 = SH_C3[5] * z * (xx - yy);
-				float dRGBdsh15 = SH_C3[6] * x * (xx - 3.f * yy);
-				dL_dsh[9] = dRGBdsh9 * dL_dRGB;
-				dL_dsh[10] = dRGBdsh10 * dL_dRGB;
-				dL_dsh[11] = dRGBdsh11 * dL_dRGB;
-				dL_dsh[12] = dRGBdsh12 * dL_dRGB;
-				dL_dsh[13] = dRGBdsh13 * dL_dRGB;
-				dL_dsh[14] = dRGBdsh14 * dL_dRGB;
-				dL_dsh[15] = dRGBdsh15 * dL_dRGB;
-
-				// dRGBdx += (
-				// 	SH_C3[0] * sh[9] * 3.f * 2.f * xy +
-				// 	SH_C3[1] * sh[10] * yz +
-				// 	SH_C3[2] * sh[11] * -2.f * xy +
-				// 	SH_C3[3] * sh[12] * -3.f * 2.f * xz +
-				// 	SH_C3[4] * sh[13] * (-3.f * xx + 4.f * zz - yy) +
-				// 	SH_C3[5] * sh[14] * 2.f * xz +
-				// 	SH_C3[6] * sh[15] * 3.f * (xx - yy));
-
-				// dRGBdy += (
-				// 	SH_C3[0] * sh[9] * 3.f * (xx - yy) +
-				// 	SH_C3[1] * sh[10] * xz +
-				// 	SH_C3[2] * sh[11] * (-3.f * yy + 4.f * zz - xx) +
-				// 	SH_C3[3] * sh[12] * -3.f * 2.f * yz +
-				// 	SH_C3[4] * sh[13] * -2.f * xy +
-				// 	SH_C3[5] * sh[14] * -2.f * yz +
-				// 	SH_C3[6] * sh[15] * -3.f * 2.f * xy);
-
-				// dRGBdz += (
-				// 	SH_C3[1] * sh[10] * xy +
-				// 	SH_C3[2] * sh[11] * 4.f * 2.f * yz +
-				// 	SH_C3[3] * sh[12] * 3.f * (2.f * zz - xx - yy) +
-				// 	SH_C3[4] * sh[13] * 4.f * 2.f * xz +
-				// 	SH_C3[5] * sh[14] * (xx - yy));
-			}
-		}
-	}
-
-	for (int i = 0; i < (deg+1)*(deg+1); i++)
-	{
-
-		dL_dtext[idx + 3*i] = dL_dsh[i].x;
-		dL_dtext[idx + 3*i + 1] = dL_dsh[i].y;
-		dL_dtext[idx + 3*i + 2] = dL_dsh[i].z;
-
-	}
-
-
-
-
-}
 
 
 // Backward pass for conversion of spherical harmonics to RGB for
@@ -833,9 +732,9 @@ __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const gl
 
 	// Gradients of loss w.r.t. scale
 	glm::vec3* dL_dscale = dL_dscales + idx;
-	dL_dscale->x = glm::dot(Rt[0], dL_dMt[0]);
-	dL_dscale->y = glm::dot(Rt[1], dL_dMt[1]);
-	dL_dscale->z = glm::dot(Rt[2], dL_dMt[2]);
+	dL_dscale->x += glm::dot(Rt[0], dL_dMt[0]);
+	dL_dscale->y += glm::dot(Rt[1], dL_dMt[1]);
+	dL_dscale->z += glm::dot(Rt[2], dL_dMt[2]);
 
 	dL_dMt[0] *= s.x;
 	dL_dMt[1] *= s.y;
@@ -920,6 +819,7 @@ renderCUDA(
 	const float4* __restrict__ conic_opacity,
 	const float* __restrict__ colors,
 	const float* __restrict__ texture,
+	const float* __restrict__ sig_out,
 	const float* __restrict__ final_Ts,
 	const uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ dL_dpixels,
@@ -929,12 +829,15 @@ renderCUDA(
 	float* __restrict__ dL_dcolors,
 	float* __restrict__ dL_dtext,
 	const bool* clamped,
+	const int D,
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
-	const glm::vec3* scales)
+	const glm::vec3* scales,
+	glm::vec3* dL_dscale,
+	glm::vec4* dL_drot)
 {
 	// We rasterize again. Compute necessary block info.
 	auto block = cg::this_thread_block();
@@ -1065,7 +968,7 @@ renderCUDA(
 			float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
 			
 			float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
-			computeColorFromD(global_id * 48, intersection, scales[collected_id[j]], texture, tmp, dL_dtext, clamped);
+			computeColorFromD(global_id, intersection, scales[collected_id[j]], texture, tmp, dL_dtext, clamped, dL_dscale, sig_out, D);
 			// computeColorFromD1(global_id * 48, d, con_o, texture, tmp, dL_dtext, clamped);
 			// the gradients are needed for every pixel of the Gaussian
 			// computeColorFromD(int idx, const float* textures, dchannel_dcolor * dL_dchannel, glm::vec3* dL_dtext);
@@ -1178,6 +1081,7 @@ void BACKWARD::render(
 	const float4* conic_opacity,
 	const float* colors,
 	const float* texture,
+	const float* sig_out,
 	const float* final_Ts,
 	const uint32_t* n_contrib,
 	const float* dL_dpixels,
@@ -1187,12 +1091,15 @@ void BACKWARD::render(
 	float* dL_dcolors,
 	float* dL_dtext,
 	const bool* clamped,
+	const int D,
 		const float* viewmatrix,
 	const float* projmatrix,
 	const float3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
-	const glm::vec3* scales)
+	const glm::vec3* scales,
+	glm::vec3* dL_dscale,
+	glm::vec4* dL_drot)
 {
 	renderCUDA<NUM_CHANNELS> << <grid, block >> >(
 		ranges,
@@ -1203,6 +1110,7 @@ void BACKWARD::render(
 		conic_opacity,
 		colors,
 		texture,
+		sig_out,
 		final_Ts,
 		n_contrib,
 		dL_dpixels,
@@ -1212,10 +1120,13 @@ void BACKWARD::render(
 		dL_dcolors,
 		dL_dtext,
 		clamped,
+		D,
 		viewmatrix,
 		projmatrix,
 		means3D,
 		cam_pos,
 	rotations,
-	scales);
+	scales,
+	dL_dscale,
+	dL_drot);
 }

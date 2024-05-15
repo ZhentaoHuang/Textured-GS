@@ -52,44 +52,68 @@ class RGBSphericalHarmonicsTexture(nn.Module):
 
     def forward(self):
         H, W = self.image_size
-        grid_y, grid_x = torch.meshgrid(torch.linspace(0, np.pi, steps=H), torch.linspace(0, 2 * np.pi, steps=W), indexing='ij')
+        grid_size = 150
+        # Create a grid of x, y, z coordinates
+        # theta, phi = torch.meshgrid(torch.linspace(0, np.pi, steps=H), torch.linspace(0, 2 * np.pi, steps=W), indexing='ij')
+        # x = torch.sin(phi) * torch.cos(theta)
+        # y = torch.sin(phi) * torch.sin(theta)
+        # z = torch.cos(phi)
 
-        theta = grid_y
-        phi = grid_x
+
+         # Create a grid of x, y in the range [-1, 1]
+        grid_x, grid_y = torch.meshgrid(torch.linspace(-0.5, 0.5, steps=grid_size), torch.linspace(-0.5, 0.5, steps=grid_size), indexing='ij')
+        radius_squared = grid_x**2 + grid_y**2
+        valid_mask = radius_squared <= 1.0
+        grid_z = torch.zeros_like(grid_x)
+
+        # Calculate z only for valid x, y points
+        grid_z[valid_mask] = torch.sqrt(1 - radius_squared[valid_mask])
+
+        # Normalize x and y where the radius squared is greater than 1
+        invalid_mask = ~valid_mask
+        lengths = torch.sqrt(grid_x[invalid_mask]**2 + grid_y[invalid_mask]**2)
+        grid_x[invalid_mask] /= lengths
+        grid_y[invalid_mask] /= lengths
+
+
+
+        x = grid_x
+        y = grid_y
+        z = grid_z
+
 
         # Initialize texture
         texture = torch.zeros(H, W, 3, dtype=torch.float32, device=self.coeffs_r.device)
 
-        # Compute all spherical harmonics up to degree 3
+        # Define spherical harmonics using Cartesian coordinates
         P_00 = torch.full((H, W), 0.5 / np.sqrt(np.pi), dtype=torch.float32, device=self.coeffs_r.device)
-        P_1m1 = np.sqrt(3/(2*np.pi)) * torch.sin(theta) * torch.sin(phi)
-        P_10 = np.sqrt(3/(4*np.pi)) * torch.cos(theta)
-        P_11 = np.sqrt(3/(2*np.pi)) * torch.sin(theta) * torch.cos(phi)
-        P_2m2 = 0.5 * np.sqrt(15/np.pi) * torch.sin(theta)**2 * torch.sin(2*phi)
-        P_2m1 = np.sqrt(15/(2*np.pi)) * torch.sin(theta) * torch.cos(theta) * torch.sin(phi)
-        P_20 = 0.25 * np.sqrt(5/np.pi) * (3 * torch.cos(theta)**2 - 1)
-        P_21 = np.sqrt(15/(2*np.pi)) * torch.sin(theta) * torch.cos(theta) * torch.cos(phi)
-        P_22 = 0.5 * np.sqrt(15/np.pi) * torch.sin(theta)**2 * torch.cos(2*phi)
-        P_3m3 = np.sqrt(35/(2*np.pi)) * torch.sin(theta)**3 * torch.sin(3*phi)
-        P_3m2 = np.sqrt(105/np.pi) * torch.sin(theta)**2 * torch.cos(theta) * torch.sin(2*phi)
-        P_3m1 = np.sqrt(21/(4*np.pi)) * torch.sin(theta) * (5 * torch.cos(theta)**2 - 1) * torch.sin(phi)
-        P_30 = 0.25 * np.sqrt(7/np.pi) * (5 * torch.cos(theta)**3 - 3 * torch.cos(theta))
-        P_31 = np.sqrt(21/(4*np.pi)) * torch.sin(theta) * (5 * torch.cos(theta)**2 - 1) * torch.cos(phi)
-        P_32 = np.sqrt(105/np.pi) * torch.sin(theta)**2 * torch.cos(theta) * torch.cos(2*phi)
-        P_33 = np.sqrt(35/(2*np.pi)) * torch.sin(theta)**3 * torch.cos(3*phi)
+        P_1m1 = np.sqrt(3/(2*np.pi)) * y
+        P_10 = np.sqrt(3/(4*np.pi)) * z
+        P_11 = np.sqrt(3/(2*np.pi)) * x
+        P_2m2 = 0.5 * np.sqrt(15/np.pi) * (2 * x * y)
+        P_2m1 = np.sqrt(15/(2*np.pi)) * y * z
+        P_20 = 0.25 * np.sqrt(5/np.pi) * (2 * z**2 - x**2 - y**2)
+        P_21 = np.sqrt(15/(2*np.pi)) * x * z
+        P_22 = 0.5 * np.sqrt(15/np.pi) * (x**2 - y**2)
+        P_3m3 = np.sqrt(35/(2*np.pi)) * (y * (3 * x**2 - y**2))
+        P_3m2 = np.sqrt(105/np.pi) * (x * y * z)
+        P_3m1 = np.sqrt(21/(4*np.pi)) * y * (5 * z**2 - 1)
+        P_30 = 0.25 * np.sqrt(7/np.pi) * z * (5 * z**2 - 3)
+        P_31 = np.sqrt(21/(4*np.pi)) * x * (5 * z**2 - 1)
+        P_32 = np.sqrt(105/np.pi) * z * (x**2 - y**2)
+        P_33 = np.sqrt(35/(2*np.pi)) * (x * (x**2 - 3 * y**2))
 
         harmonics = torch.stack([P_00, P_1m1, P_10, P_11, P_2m2, P_2m1, P_20, P_21, P_22, P_3m3, P_3m2, P_3m1, P_30, P_31, P_32, P_33], dim=0)
 
-        
-
         # Compute texture for each channel using spherical harmonics coefficients
-        for i in range(9):
+        for i in range(16):  # Ensure correct indexing according to the number of coefficients
             texture[:, :, 0] += self.coeffs_r[i] * harmonics[i, :, :]
             texture[:, :, 1] += self.coeffs_g[i] * harmonics[i, :, :]
             texture[:, :, 2] += self.coeffs_b[i] * harmonics[i, :, :]
 
+
         # Normalize texture to [0, 1]
-        texture = (texture - texture.min()) / (texture.max() - texture.min())
+        # texture = (texture - texture.min()) / (texture.max() - texture.min())
         texture = torch.sigmoid(texture)  # Apply sigmoid to clamp the values between 0 and 1
 
         return texture
@@ -128,8 +152,8 @@ class EnhancedTextureFunction(nn.Module):
                 texture[:, :, c] += self.amplitudes[i] * torch.sin(2 * np.pi * spatial_frequency + self.phases[i] + self.rgb_phases[c])
 
         # Normalize texture to [0, 1]
-        texture = (texture - texture.min()) / (texture.max() - texture.min())
-        texture = torch.sigmoid(texture)
+        # texture = (texture - texture.min()) / (texture.max() - texture.min())
+        # texture = torch.sigmoid(texture)
         return texture
 
 
@@ -137,13 +161,13 @@ class EnhancedTextureFunction(nn.Module):
 
 if __name__ == "__main__":
 
-    target_image = read_image_to_tensor("000001.jpg")
+    target_image = read_image_to_tensor("00051.png")
     print("target", target_image.shape)
 
     target_texture = torch.tensor(target_image, dtype=torch.float32).unsqueeze(0) # Normalize
 
-    y_start, x_start = 280, 200  # Example start position
-    h, w = 50, 50  # Example size of the patch
+    y_start, x_start = 203, 206  # Example start position
+    h, w = 150, 150  # Example size of the patch
 
     # Extract the patch
     target_texture = target_texture[:, :, y_start:y_start+h, x_start:x_start+w]
