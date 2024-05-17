@@ -169,7 +169,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         grads = (
             grad_means3D,
             grad_means2D,
-            None,
+            grad_sh,
             grad_colors_precomp,
             grad_opacities,
             grad_scales,
@@ -218,7 +218,7 @@ class GaussianRasterizer(nn.Module):
         
         raster_settings = self.raster_settings
 
-        if (texture is None and colors_precomp is None) or (shs is not None and colors_precomp is not None):
+        if (shs is None and colors_precomp is None) or (shs is not None and colors_precomp is not None):
             raise Exception('Please provide excatly one of either SHs or precomputed colors!')
         
         if ((scales is None or rotations is None) and cov3D_precomp is None) or ((scales is not None or rotations is not None) and cov3D_precomp is not None):

@@ -651,6 +651,9 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	if (colors_precomp == nullptr)
 	{
 		glm::vec3 result = computeColorFromSH(idx, D, M, (glm::vec3*)orig_points, *cam_pos, shs, clamped);
+		// result.x = 0;
+		// result.y = 0;
+		// result.z = 0;
 		rgb[idx * C + 0] = result.x;
 		rgb[idx * C + 1] = result.y;
 		rgb[idx * C + 2] = result.z;
@@ -677,6 +680,7 @@ renderCUDA(
 	const float2* __restrict__ points_xy_image,
 	const float* __restrict__ features,
 	const float* __restrict__ texture,
+	float* rgb,
 	float* __restrict__ pixel_count,
 	float* __restrict__ sig_out,
 	const float4* __restrict__ conic_opacity,
@@ -783,7 +787,7 @@ renderCUDA(
 			float3 ray = getRayVec(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
 			
 			float3 intersection = getIntersection(ray, mean, rotations[collected_id[j]], *cam_pos);
-			glm::vec3 rgb = computeColorFromD(collected_id[j], intersection, scales[collected_id[j]], texture, clamped, sig_out, degree);
+			glm::vec3 rgb_out = computeColorFromD(collected_id[j], intersection, scales[collected_id[j]], texture, clamped, sig_out, degree);
 			// glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, d,texture, clamped);
 			// printf("mean: %.2f, %.2f, %.2f, ray: %f, %f, %f, p: %f, %f, scales: %f,%f,%f intersection: %f, %f, %f\n", mean.x, mean.y, mean.z,
 			// ray.x, ray.y, ray.z, pixf.x, pixf.y, scales[collected_id[j]].x, scales[collected_id[j]].y, scales[collected_id[j]].z,intersection.x, intersection.y, intersection.z);
@@ -792,10 +796,13 @@ renderCUDA(
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
 				// C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+			rgb[3 * collected_id[j]]= rgb_out.x;
+			rgb[3 * collected_id[j] + 1] = rgb_out.y;
+			rgb[3 * collected_id[j] + 2] = rgb_out.z;
 				
-			C[0] += rgb.x * alpha * T;
-			C[1] += rgb.y * alpha * T;
-			C[2] += rgb.z * alpha * T;
+			C[0] += rgb_out.x * alpha * T;
+			C[1] += rgb_out.y * alpha * T;
+			C[2] += rgb_out.z * alpha * T;
 
 
 			T = test_T;
@@ -825,6 +832,7 @@ void FORWARD::render(
 	const float2* means2D,
 	const float* colors,
 	const float* texture,
+	float* rgb,
 	float* pixel_count,
 	float* sig_out,
 	const float4* conic_opacity,
@@ -852,6 +860,7 @@ void FORWARD::render(
 		means2D,
 		colors,
 		texture,
+		rgb,
 		pixel_count,
 		sig_out,
 		conic_opacity,

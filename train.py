@@ -78,7 +78,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             for param_group in gaussians.optimizer.param_groups:
                 print(f"Epoch {iteration}: Group '{param_group['name']}' Learning Rate: {param_group['lr']}")
     
-        if iteration % 35000 == 0:
+        if iteration % 16000 == 0:
             gaussians.oneupSHdegree()
 
         # Pick a random Camera

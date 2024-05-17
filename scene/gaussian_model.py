@@ -50,7 +50,9 @@ class GaussianModel:
         self._scaling = torch.empty(0)
         self._rotation = torch.empty(0)
         self._opacity = torch.empty(0)
-        self._texture = torch.empty(0)  # Texture params
+        # self._texture = torch.empty(0)  # Texture params
+        self._texture_dc = torch.empty(0)
+        self._texture_rest = torch.empty(0)
         self.pixel_count = torch.empty(0)
         self.sig_out = torch.empty(0)
         self.max_radii2D = torch.empty(0)
@@ -119,7 +121,9 @@ class GaussianModel:
     
     @property
     def get_texture(self):
-        return self._texture
+        texture_dc = self._texture_dc
+        texture_rest = self._texture_rest
+        return torch.cat((texture_dc, texture_rest), dim=1)
     
     def get_covariance(self, scaling_modifier = 1):
         return self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
@@ -245,7 +249,9 @@ class GaussianModel:
             {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
-            {'params': [self._texture], 'lr': training_args.feature_lr, "name": "texture"}
+            # {'params': [self._texture], 'lr': training_args.feature_lr, "name": "texture"}
+            {'params': [self._texture_dc], 'lr': training_args.texture_lr_init, "name": "texture_dc"},
+            {'params': [self._texture_rest], 'lr': training_args.texture_lr_init / 20.0, "name": "texture_rest"}
         ]
 
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
@@ -266,8 +272,11 @@ class GaussianModel:
                 lr = self.xyz_scheduler_args(iteration)
                 param_group['lr'] = lr
                 # return lr
-            elif param_group["name"] == "texture":
+            elif param_group["name"] == "texture_dc":
                 lr = self.texture_scheduler_args(iteration)
+                param_group['lr'] = lr
+            elif param_group["name"] == "texture_rest":
+                lr = self.texture_scheduler_args(iteration)/20.0
                 param_group['lr'] = lr
 
     def construct_list_of_attributes(self):
@@ -282,8 +291,10 @@ class GaussianModel:
             l.append('scale_{}'.format(i))
         for i in range(self._rotation.shape[1]):
             l.append('rot_{}'.format(i))
-        for i in range(self._texture.shape[1]*self._texture.shape[2]):
-            l.append('text_{}'.format(i))
+        for i in range(self._texture_dc.shape[1]*self._texture_dc.shape[2]):
+            l.append('text_dc_{}'.format(i))
+        for i in range(self._texture_rest.shape[1]*self._texture_rest.shape[2]):
+            l.append('text_rest_{}'.format(i))
         return l
 
 
@@ -344,11 +355,13 @@ class GaussianModel:
         opacities = self._opacity.detach().cpu().numpy()
         scale = self._scaling.detach().cpu().numpy()
         rotation = self._rotation.detach().cpu().numpy()
-        texture = self._texture.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        texture_dc = self._texture_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        texture_rest = self._texture_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
         elements = np.empty(xyz.shape[0], dtype=dtype_full)
-        attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation, texture), axis=1)
+        attributes = np.concatenate((xyz, normals, f_dc, f_rest,opacities, scale, rotation, texture_dc, texture_rest), axis=1)
         elements[:] = list(map(tuple, attributes))
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
@@ -404,7 +417,15 @@ class GaussianModel:
             texture[:, :, 0] = features_dc.squeeze(-1)
             texture[:,:,0] = np.clip(texture[:,:,0], 0.01, 0.99)
             texture[:,:,0] = -np.log((1 - texture[:,:,0])/texture[:,:,0])
-            # tensor_transposed = features.clone().detach().transpose(1, 2).contiguous().to('cuda')
+            texture_dc = features_dc.clone().detach()
+            # texture_dc = texture_dc.squeeze(-1)
+            texture_dc = np.clip(texture_dc, 0.01, 0.99)
+            texture_dc = -np.log((1 - texture_dc)/texture_dc)
+            texture_rest = torch.zeros((half_point, 3, 15))
+
+            
+
+          
 
         # Create a Parameter and ensure it requires gradients
             # self._texture = nn.Parameter(tensor_transposed).requires_grad_(True)
@@ -433,12 +454,18 @@ class GaussianModel:
 
         # Set tensor parameters
         self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._features_dc = nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
+        # self._features_dc = nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
+        self._features_dc = nn.Parameter(features_dc.clone().detach().transpose(1, 2).contiguous().float().to(device="cuda"))
+
         self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        # self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        # self._texture_dc = nn.Parameter(torch.tensor(texture_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._texture_dc = nn.Parameter(texture_dc.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
+        # self._texture_rest = nn.Parameter(torch.tensor(texture_rest, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._texture_rest = nn.Parameter(texture_rest.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
         self.max_radii2D = torch.zeros((half_point), device="cuda")
         self.active_sh_degree = 0
         self.pixel_count = torch.zeros((half_point), device="cuda").requires_grad_(False)
@@ -468,16 +495,22 @@ class GaussianModel:
         features_extra = features_extra.reshape((features_extra.shape[0], 3, (self.max_sh_degree + 1) ** 2 - 1))
 
 
-        text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
-        text_names = sorted(text_names, key = lambda x: int(x.split('_')[-1]))
+        # text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
+        # text_names = sorted(text_names, key = lambda x: int(x.split('_')[-1]))
         # assert len(text_names)==3*(self.max_sh_degree + 1) ** 2 - 3
         # assert len(text_names)==48
-        if (len(text_names) == 48):
-            texture = np.zeros((xyz.shape[0], len(text_names)))
-            for idx, attr_name in enumerate(text_names):
-                texture[:, idx] = np.asarray(plydata.elements[0][attr_name])
-            texture = texture.reshape((texture.shape[0], 3, 16))
-            self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        extra_text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_rest_")]
+        extra_text_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
+        if (len(extra_text_names) == 45):
+            texture_extra = np.zeros((xyz.shape[0], len(extra_text_names)))
+            for idx, attr_name in enumerate(extra_text_names):
+                texture_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+            texture_extra = texture_extra.reshape((texture_extra.shape[0], 3, 15))
+
+            texture_dc = np.zeros((xyz.shape[0], 3, 1))
+            texture_dc[:, 0, 0] = np.asarray(plydata.elements[0]["text_dc_0"])
+            texture_dc[:, 1, 0] = np.asarray(plydata.elements[0]["text_dc_1"])
+            texture_dc[:, 2, 0] = np.asarray(plydata.elements[0]["text_dc_2"])
         else:
             print("No texture loaded, generating zeros!")
             # texture = np.zeros((xyz.shape[0], 3, 16))
@@ -509,7 +542,9 @@ class GaussianModel:
         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(2, 1).contiguous().requires_grad_(True))
+        # self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(2, 1).contiguous().requires_grad_(True))
+        self._texture_dc = nn.Parameter(torch.tensor(texture_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._texture_rest = nn.Parameter(torch.tensor(texture_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
 
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         self.active_sh_degree = self.max_sh_degree

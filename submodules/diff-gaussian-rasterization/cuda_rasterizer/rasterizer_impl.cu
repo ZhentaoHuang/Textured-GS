@@ -338,6 +338,7 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.means2D,
 		feature_ptr,
 		texture,
+		geomState.rgb,
 		pixel_count,
 		sig_out,
 		geomState.conic_opacity,
