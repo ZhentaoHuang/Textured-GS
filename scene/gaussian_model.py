@@ -186,8 +186,8 @@ class GaussianModel:
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
         fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
         features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda()
-        # features[:, :3, 0 ] = fused_color
-        # features[:, :3, 1:] = 0.0
+        features[:, :3, 0 ] = fused_color
+        features[:, :3, 1:] = 0.0
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
 
@@ -219,10 +219,15 @@ class GaussianModel:
         # # Convert the numpy array to a PyTorch tensor
         # self._texture = nn.Parameter(torch.tensor(tensor_np, device="cuda").requires_grad_(True))
 
-        tensor_transposed = features.clone().detach().transpose(1, 2).contiguous().to('cuda')
-
+        texture_dc = features[:,:,0:1].clone().detach()
+        self.active_sh_degree = 0
         # Create a Parameter and ensure it requires gradients
-        self._texture = nn.Parameter(tensor_transposed).requires_grad_(True)
+        # self._texture = nn.Parameter(tensor_transposed).requires_grad_(True)
+        # texture_dc = fused_color.clone().detach()
+        texture_rest = torch.zeros((self.get_xyz.shape[0], 3, 15))
+        self._texture_dc = nn.Parameter(texture_dc.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
+        self._texture_rest = nn.Parameter(texture_rest.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
+        self.sig_out = torch.zeros((self.get_xyz.shape[0], 3), device='cuda').requires_grad_(False)
         self.pixel_count = torch.zeros((self.get_xyz.shape[0]), device="cuda").requires_grad_(False)
 
 
@@ -251,7 +256,7 @@ class GaussianModel:
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
             # {'params': [self._texture], 'lr': training_args.feature_lr, "name": "texture"}
             {'params': [self._texture_dc], 'lr': training_args.texture_lr_init, "name": "texture_dc"},
-            {'params': [self._texture_rest], 'lr': training_args.texture_lr_init / 20.0, "name": "texture_rest"}
+            {'params': [self._texture_rest], 'lr': training_args.texture_lr_init / 10.0, "name": "texture_rest"}
         ]
 
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
@@ -271,13 +276,40 @@ class GaussianModel:
             if param_group["name"] == "xyz":
                 lr = self.xyz_scheduler_args(iteration)
                 param_group['lr'] = lr
+                
+                # if iteration >= 14000:
+                #     lr = 0
+                #     param_group['lr'] = lr
+                # else:
+                #     lr = self.xyz_scheduler_args(iteration)
+                #     param_group['lr'] = lr
+                
                 # return lr
             elif param_group["name"] == "texture_dc":
-                lr = self.texture_scheduler_args(iteration)
-                param_group['lr'] = lr
+                if iteration >= 14000:
+
+                    lr = self.texture_scheduler_args(iteration)
+                    param_group['lr'] = lr
+                else:
+                    lr = self.texture_scheduler_args(iteration)
+                    param_group['lr'] = lr
+
             elif param_group["name"] == "texture_rest":
-                lr = self.texture_scheduler_args(iteration)/20.0
+                lr = self.texture_scheduler_args(iteration)/1.0
                 param_group['lr'] = lr
+            # elif param_group["name"] == "scaling":
+            #     if iteration == 14000:
+            #         lr = 0
+            #         param_group['lr'] = lr
+            # elif param_group["name"] == "rotation":
+            #     if iteration == 14000:
+            #         lr = 0
+            #         param_group['lr'] = lr
+            # elif param_group["name"] == "opacity":
+            #     if iteration == 14000:
+            #         lr = 0
+            #         param_group['lr'] = lr
+
 
     def construct_list_of_attributes(self):
         l = ['x', 'y', 'z', 'nx', 'ny', 'nz']
@@ -296,6 +328,8 @@ class GaussianModel:
         for i in range(self._texture_rest.shape[1]*self._texture_rest.shape[2]):
             l.append('text_rest_{}'.format(i))
         return l
+    
+
 
 
     def save_ply_maksed(self, path, filter_opacity_threshold=None, region_bounds=None):
@@ -377,7 +411,9 @@ class GaussianModel:
         plydata = PlyData.read(path)
 
         # Calculate half of the number of data points
-        half_point = len(plydata.elements[0]["x"]) // 2
+        # half_point = len(plydata.elements[0]["x"]) // 10000
+        half_point = 5000
+        # half_point =1
 
         # Load only half of the data points
         xyz = np.stack((
@@ -404,23 +440,23 @@ class GaussianModel:
         # Assuming texture data exists and there are 48 texture properties
         text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
         text_names = sorted(text_names, key=lambda x: int(x.split('_')[-1]))
-
+        features_dc = torch.from_numpy(features_dc)
         if (len(text_names) == 48):
-            texture = np.zeros((half_point, len(text_names)))
-            for idx, attr_name in enumerate(text_names):
-                texture[:, idx] = np.asarray(plydata.elements[0][attr_name][:half_point])
-            texture = texture.reshape((half_point, 3, 16))
+            texture_dc = features_dc.clone().detach()
+            texture_rest = torch.zeros((half_point, 3, 15))
+
         else:
             print("No texture loaded, generating zeros!")
             texture = torch.zeros((half_point, 3, 16))
-            features_dc = torch.from_numpy(features_dc)
+            
             texture[:, :, 0] = features_dc.squeeze(-1)
             texture[:,:,0] = np.clip(texture[:,:,0], 0.01, 0.99)
             texture[:,:,0] = -np.log((1 - texture[:,:,0])/texture[:,:,0])
             texture_dc = features_dc.clone().detach()
             # texture_dc = texture_dc.squeeze(-1)
-            texture_dc = np.clip(texture_dc, 0.01, 0.99)
-            texture_dc = -np.log((1 - texture_dc)/texture_dc)
+            # texture_dc = np.clip(texture_dc, 0.01, 0.99)
+            # texture_dc = -np.log((1 - texture_dc)/texture_dc)
+            texture_dc =  texture_dc * (1 / 0.28209479177387814)
             texture_rest = torch.zeros((half_point, 3, 15))
 
             
@@ -500,26 +536,37 @@ class GaussianModel:
         # assert len(text_names)==3*(self.max_sh_degree + 1) ** 2 - 3
         # assert len(text_names)==48
         extra_text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_rest_")]
-        extra_text_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
+        extra_text_names = sorted(extra_text_names, key = lambda x: int(x.split('_')[-1]))
+        features_dc = torch.from_numpy(features_dc)
         if (len(extra_text_names) == 45):
+            # print(extra_text_names)
             texture_extra = np.zeros((xyz.shape[0], len(extra_text_names)))
             for idx, attr_name in enumerate(extra_text_names):
                 texture_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
             texture_extra = texture_extra.reshape((texture_extra.shape[0], 3, 15))
+            texture_extra = torch.from_numpy(texture_extra).clone().detach()
 
             texture_dc = np.zeros((xyz.shape[0], 3, 1))
             texture_dc[:, 0, 0] = np.asarray(plydata.elements[0]["text_dc_0"])
             texture_dc[:, 1, 0] = np.asarray(plydata.elements[0]["text_dc_1"])
             texture_dc[:, 2, 0] = np.asarray(plydata.elements[0]["text_dc_2"])
+            texture_dc = torch.from_numpy(texture_dc).clone().detach()
         else:
             print("No texture loaded, generating zeros!")
-            # texture = np.zeros((xyz.shape[0], 3, 16))
-            # self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
-            texture = torch.zeros((xyz.shape[0], 3, 16))
-            features_dc = torch.from_numpy(features_dc)
-            texture[:, :, 0] = features_dc.squeeze(-1)
-            texture[:,:,0] = np.clip(texture[:,:,0], 0.01, 0.99)
-            texture[:,:,0] = -np.log((1 - texture[:,:,0])/texture[:,:,0])
+            
+            texture_dc = features_dc.clone().detach()
+            # texture_dc = features_dc.copy()
+            # texture_dc = np.maximum(0, texture_dc)
+            # # texture_dc += 0.5
+            # texture_dc = np.clip(texture_dc, 0.01, 0.99)
+            # texture_dc = -np.log((1 - texture_dc)/texture_dc)
+            texture_extra = torch.zeros((xyz.shape[0], 3, 15))
+            # Determine the max value for scaling; this could be the max of texture_dc or a predefined max if known
+            max_value = 1
+            min_value = 0.5  # Since the minimum after ReLU and adding 0.5 is 0.5
+
+            # Scale values to be within 0 and 1
+            texture_dc =  texture_dc * (1 / 0.28209479177387814)
     
         
         scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
@@ -537,14 +584,15 @@ class GaussianModel:
             rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
 
         self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._features_dc = nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._features_dc = nn.Parameter(features_dc.clone().detach().transpose(1, 2).contiguous().float().to(device="cuda"))
         self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
         # self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(2, 1).contiguous().requires_grad_(True))
-        self._texture_dc = nn.Parameter(torch.tensor(texture_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
-        self._texture_rest = nn.Parameter(torch.tensor(texture_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._texture_dc = nn.Parameter(texture_dc.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
+        # self._texture_rest = nn.Parameter(torch.tensor(texture_rest, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._texture_rest = nn.Parameter(texture_extra.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
 
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         self.active_sh_degree = self.max_sh_degree

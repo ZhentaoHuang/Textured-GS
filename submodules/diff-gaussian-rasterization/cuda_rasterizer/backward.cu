@@ -222,14 +222,127 @@ __device__ float3 getIntersection_b(float3 ray, const float3 mean, const glm::ve
                                       oLocal.y + t * dLocal.y,
                                       oLocal.z + t * dLocal.z);
 
-	if(t > 0)
-	{
-		intersection.x = -intersection.x;
-		intersection.y = -intersection.y;
-		intersection.z = -intersection.z;
-	}
+	// if(oLocal.z < 0)
+	// {
+	// 	intersection.x = -intersection.x;
+	// 	intersection.y = intersection.y;
+	// 	intersection.z = intersection.z;
+	// }
 
     return intersection;
+}
+
+
+
+
+
+__device__ glm::vec3 computeColorFromD_f(int idx, const float3 intersection, glm::vec3 scale, const float* texture, const int deg)
+{
+	// printf("int: %f,%f", intersection.x);
+	float x = intersection.x* (1/(1*sqrt(scale.x)));
+	float y = intersection.y* (1/(1*sqrt(scale.y)));
+	// printf("int: %f,%f\n", x, y);
+	float z;
+	float length_squared = x * x + y * y;
+	// z = sqrt(1.0f - length_squared);
+	if (length_squared > 1.0f) {
+		// return glm::vec3{0,0,0};
+		// printf("out: %f, %f, %f\n", length_squared, intersection.x, intersection.y);
+		float length = sqrt(length_squared);
+		x /= length;
+		y /= length;
+		z = 0.0f; // The z-component becomes zero as the vector lies on the xy-plane
+	} else {
+		z = sqrt(1.0f - length_squared);
+	}
+	// printf("int: %f,%f,%f\n", x, y,z);
+	// float x = intersection.x* (1/sqrt(scale.x));
+	// float y = intersection.y* (1/sqrt( scale.y));
+	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
+
+	// float phi = atan2(x, y);
+	// float ray_l = sqrt(x * x + y * y);
+	// float theta = acos(max(-1.0f, min(1.0f, ray_l / 1)));
+
+	// x = sin(theta) * cos(phi);
+	//  y = sin(theta) * sin(phi);
+	// float z = cos(theta);  // Corrected from cos(phi) to cos(theta)
+
+	// int deg = 1;
+	// printf("deg: %d\n", deg);
+	int max_coeffs = 48;
+
+	
+	// glm::vec3* sh = ((glm::vec3*)texture) + idx;// * max_coeffs;
+	glm::vec3 sh[16];
+
+	for (int i = 0; i < (deg+1) * (deg+1); i++)
+	{
+		sh[i].x = texture[idx*max_coeffs + 3*i];
+		sh[i].y = texture[idx*max_coeffs + 3*i + 1]; 
+		sh[i].z = texture[idx*max_coeffs + 3*i + 2];
+	}
+
+
+
+
+
+
+	glm::vec3 result = SH_C0 * sh[0];
+	if(deg > 0)
+	{
+		result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+	}
+
+	if (deg > 1)
+	{
+		float xx = x * x, yy = y * y, zz = z * z;
+		float xy = x * y, yz = y * z, xz = x * z;
+		result = result +
+			SH_C2[0] * xy * sh[4] +
+			SH_C2[1] * yz * sh[5] +
+			SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
+			SH_C2[3] * xz * sh[7] +
+			SH_C2[4] * (xx - yy) * sh[8];
+		
+		if (deg > 2)
+		{
+			result = result +
+				SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
+				SH_C3[1] * xy * z * sh[10] +
+				SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
+				SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
+				SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
+				SH_C3[5] * z * (xx - yy) * sh[14] +
+				SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
+
+		}
+	}
+	// result += 0.5f;
+
+
+	// RGB colors are clamped to positive values. If values are
+	// clamped, we need to keep track of this for the backward pass.
+
+	// clamped[3 * (idx) + 0] = clamped[3 * (idx) + 0] || (result.x < 0);
+	// clamped[3 * (idx) + 1] = clamped[3 * (idx) + 1] || (result.y < 0);
+	// clamped[3 * (idx) + 2] = clamped[3 * (idx) + 2] || (result.z < 0);
+
+	result = 1.0f / (1.0f + glm::exp(-result));
+	// result += 0.5f;
+	// sig_out[3 * idx + 0] += result.x;
+	// sig_out[3 * idx + 1] += result.y;
+	// sig_out[3 * idx + 2] += result.z;
+	// result.x = 1.0f - length_squared;
+	// result.y = 1.0f - length_squared;
+	// result.z = 1.0f - length_squared;
+	// printf("z: %f",z );
+	// result.z = z;
+	//  d_out[idx] = 1.0 / (1.0 + exp(-result));glm::
+	// return glm::max(result, 0.0f);
+	return result;
+
+
 }
 
 
@@ -261,8 +374,8 @@ __device__ void computeColorFromD(int idx, const float3 intersection, glm::vec3 
 
 
 
-	float x = intersection.x* (1/(1*sqrt(scale.x) + 0.3f));
-	float y = intersection.y* (1/(1*sqrt(scale.x) + 0.3f));
+	float x = intersection.x* (1/(1*sqrt(scale.x)));
+	float y = intersection.y* (1/(1*sqrt(scale.y)));
 	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
 
 	// float phi = atan2(x, y);
@@ -384,9 +497,13 @@ __device__ void computeColorFromD(int idx, const float3 intersection, glm::vec3 
 	for (int i = 0; i < (deg+1)*(deg+1); i++)
 	{
 
-		dL_dtext[idx*max_coeffs + 3*i] += dL_dsh[i].x;
-		dL_dtext[idx*max_coeffs + 3*i + 1] += dL_dsh[i].y;
-		dL_dtext[idx*max_coeffs + 3*i + 2] += dL_dsh[i].z;
+		// dL_dtext[idx*max_coeffs + 3*i] += dL_dsh[i].x;
+		// dL_dtext[idx*max_coeffs + 3*i + 1] += dL_dsh[i].y;
+		// dL_dtext[idx*max_coeffs + 3*i + 2] += dL_dsh[i].z;
+
+		atomicAdd(&dL_dtext[idx*max_coeffs + 3*i], dL_dsh[i].x);
+		atomicAdd(&dL_dtext[idx*max_coeffs + 3*i + 1], dL_dsh[i].y);
+		atomicAdd(&dL_dtext[idx*max_coeffs + 3*i + 2], dL_dsh[i].z);
 
 	}
 
@@ -396,7 +513,9 @@ __device__ void computeColorFromD(int idx, const float3 intersection, glm::vec3 
     // float length_squared = x * x + y * y;
     // float z = (length_squared > 1.0f) ? 0.0f : sqrt(1.0f - length_squared);
 
-    // // Compute gradients of x, y, z with respect to scale
+
+	// + 0.3???
+    // Compute gradients of x, y, z with respect to scale
     // float dx_dscalex = -0.5 * intersection.x / (scale.x * sqrt(scale.x));
     // float dy_dscaley = -0.5 * intersection.y / (scale.y * sqrt(scale.y));
     // float dz_dscalex = (length_squared > 1.0f) ? 0 : -0.5 / sqrt(1.0f - length_squared) * 2 * x * dx_dscalex;
@@ -935,9 +1054,28 @@ renderCUDA(
 			float dL_dalpha = 0.0f;
 			const int global_id = collected_id[j];
 			glm::vec3 tmp;
+
+			float3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
+			float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
+			float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
+			glm::vec3 rgb_out = computeColorFromD_f(collected_id[j], intersection, scales[collected_id[j]], texture, D);
+
 			for (int ch = 0; ch < C; ch++)
 			{
-				const float c = collected_colors[ch * BLOCK_SIZE + j];
+				// const float c = collected_colors[ch * BLOCK_SIZE + j];
+				float c = 0;
+				if (ch == 0 )
+				{
+					c = rgb_out.x;
+				}
+				else if(ch == 1)
+				{
+					c = rgb_out.y;
+				}
+				else
+				{
+					c = rgb_out.z;
+				}
 				// Update last color (to be used in the next iteration)
 				accum_rec[ch] = last_alpha * last_color[ch] + (1.f - last_alpha) * accum_rec[ch];
 				last_color[ch] = c;
@@ -951,23 +1089,26 @@ renderCUDA(
 				if(ch == 0)
 				{
 					// printf("tmp.x: %f, %f\n", dL_dcolors[global_id * 3 + 0], dchannel_dcolor * dL_dchannel);
-					tmp.x = dL_dcolors[global_id * C + ch];
+					// tmp.x = dL_dcolors[global_id * C + ch];
+					tmp.x = dchannel_dcolor * dL_dchannel;
 				}
 				else if (ch == 1)
 				{
-					tmp.y = dL_dcolors[global_id * C + ch];
+					// tmp.y = dL_dcolors[global_id * C + ch];
+					tmp.y = dchannel_dcolor * dL_dchannel;
 				}
 				else
 				{
-					tmp.z = dL_dcolors[global_id * C + ch];
+					// tmp.z = dL_dcolors[global_id * C + ch];
+					tmp.z = dchannel_dcolor * dL_dchannel;
 				}
 				
 				
 			}
-			float3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
-			float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
+			// float3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
+			// float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
 			
-			float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
+			// float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
 			computeColorFromD(global_id, intersection, scales[collected_id[j]], texture, tmp, dL_dtext, clamped, dL_dscale, sig_out, D);
 			// computeColorFromD1(global_id * 48, d, con_o, texture, tmp, dL_dtext, clamped);
 			// the gradients are needed for every pixel of the Gaussian

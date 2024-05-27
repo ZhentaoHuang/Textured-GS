@@ -28,6 +28,7 @@ class Scene:
         """
         self.model_path = args.model_path
         # tmp use
+        # self.loaded_iter = False
         self.loaded_iter = 66
         self.is_training_from_half = is_training_from_half
         self.gaussians = gaussians
@@ -88,7 +89,7 @@ class Scene:
                                                            "point_cloud.ply"))
         else:
             print("creating from pcd")
-            self.gaussians.create_from_pcd_masked(scene_info.point_cloud, self.cameras_extent)
+            self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
 
     def save(self, iteration):
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))

@@ -123,6 +123,8 @@ class _RasterizeGaussians(torch.autograd.Function):
         # print("shape",sig_out.shape, pixel_count.shape)
         pixel_count = pixel_count.unsqueeze(1)
         sig_out = sig_out / pixel_count
+        # sig_out.zero_()
+        # print("sig_out: ",sig_out, "pix: ",pixel_count)
         # Restructure args as C++ method expects them
         args = (raster_settings.bg,
                 means3D, 
@@ -163,7 +165,11 @@ class _RasterizeGaussians(torch.autograd.Function):
         # print("shape",grad_text.shape, pixel_count.shape)
         pixel_count = pixel_count.unsqueeze(2) 
         grad_text_1 = grad_text / pixel_count
-        # print("sig_out: ",sig_out)
+        
+        # print("grad_text_1: ",pixel_count)
+        # pixel_count.zero_()
+        # sig_out.zero_()
+
         # clamped_grad_text = torch.clamp(grad_text, min=-0.05, max=0.05)
 
         grads = (

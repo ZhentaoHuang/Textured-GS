@@ -56,6 +56,9 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     pixel_count = pc.pixel_count
     sig_out = pc.sig_out
 
+    pixel_count.zero_()
+    sig_out.zero_()
+
     # If precomputed 3d covariance is provided, use it. If not, then it will be computed from
     # scaling / rotation by the rasterizer.
     scales = None
@@ -79,8 +82,8 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             sh2rgb = eval_sh(pc.active_sh_degree, shs_view, dir_pp_normalized)
             colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
         else:
-            shs = torch.ones_like(pc.get_features)
-            # shs = pc.get_texture
+            # shs = torch.ones_like(pc.get_features)
+            shs = pc.get_texture
     else:
         colors_precomp = override_color
 

@@ -53,10 +53,15 @@ def loadCam(args, id, cam_info, resolution_scale):
 
 def cameraList_from_camInfos(cam_infos, resolution_scale, args):
     camera_list = []
+    # id_list = [2, 5, 15, 16, 22, 23, 26, 30, 46, 47, 48, 52, 66, 71, 93, 94, 97, 98, 99, 100, 101, 102, 112, 130, 135, 147, 148]
+    id_list = [2, 5]
+    # before 5651
+    name_list = ["DSC05574", "DSC05577", "DSC05587", "DSC05588", "DSC05594", "DSC05595", "DSC05598", "DSC05602", "DSC05618", "DSC05619", "DSC05620", "DSC05624"
+                 , "DSC05638", "DSC05643"]
 
     for id, c in enumerate(cam_infos):
-        # if id != 200:
-        #     continue
+        if c.image_name not in name_list:
+            continue
         camera_list.append(loadCam(args, id, c, resolution_scale))
 
     return camera_list

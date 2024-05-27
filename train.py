@@ -71,15 +71,25 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         gaussians.update_learning_rate(iteration)
 
         # Every 1000 its we increase the levels of SH up to a maximum degree
-        if iteration % 1000 == 0:
-            # gaussians.oneupSHdegree()
-            # print("xyz:", gaussians.get_xyz, "opa: ", gaussians.get_texture)
+        # if iteration % 1000 == 0:
+        #     # gaussians.oneupSHdegree()
+        #     print( "text: ", gaussians.get_texture)
+            # print( "xyz: ", gaussians.get_xyz)
+
+
             # print(gaussians.xyz_scheduler_args)
-            for param_group in gaussians.optimizer.param_groups:
-                print(f"Epoch {iteration}: Group '{param_group['name']}' Learning Rate: {param_group['lr']}")
+            # for param_group in gaussians.optimizer.param_groups:
+                # print(f"Epoch {iteration}: Group '{param_group['name']}' Learning Rate: {param_group['lr']}")
     
-        if iteration % 16000 == 0:
+        # if iteration % 7000 == 0:
+            # gaussians.oneupSHdegree()
+
+        if iteration == 14000 or iteration == 18000 or iteration == 22000:
             gaussians.oneupSHdegree()
+
+        # if iteration == 14000:
+        #     gaussians.oneupSHdegree()
+
 
         # Pick a random Camera
         if not viewpoint_stack:
@@ -143,6 +153,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 #     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                 
                 # if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
+                #     print("reset!")
                 #     gaussians.reset_opacity()
 
             # Optimizer step
@@ -185,6 +196,38 @@ def prepare_output_and_logger(args):
         print("Tensorboard not available: not logging progress")
     return tb_writer
 
+
+import matplotlib.pyplot as plt
+
+def visualize_images(image, gt_image, title="Comparison"):
+    # Convert images from PyTorch tensors to numpy arrays
+    if torch.is_tensor(image):
+        image = image.squeeze().detach().cpu().numpy()
+    if torch.is_tensor(gt_image):
+        gt_image = gt_image.squeeze().detach().cpu().numpy()
+
+    # Assuming image data is in CHW format, convert to HWC
+    if image.shape[0] in {1, 3}:  # grayscale or RGB
+        image = image.transpose(1, 2, 0)
+    if gt_image.shape[0] in {1, 3}:  # grayscale or RGB
+        gt_image = gt_image.transpose(1, 2, 0)
+
+    # Normalize for display
+    # image = (image - image.min()) / (image.max() - image.min())
+    # gt_image = (gt_image - gt_image.min()) / (gt_image.max() - gt_image.min())
+
+    # Display the images
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    axs[0].imshow(image, cmap='gray' if image.shape[2] == 1 else None)
+    axs[0].set_title('Rendered Image')
+    axs[0].axis('off')
+    axs[1].imshow(gt_image, cmap='gray' if gt_image.shape[2] == 1 else None)
+    axs[1].set_title('Ground Truth Image')
+    axs[1].axis('off')
+
+    plt.suptitle(title)
+    plt.show()
+
 def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs):
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iteration)
@@ -196,6 +239,8 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
         torch.cuda.empty_cache()
         validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
                               {'name': 'train', 'cameras' : [scene.getTrainCameras()[idx % len(scene.getTrainCameras())] for idx in range(5, 30, 5)]})
+        # validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
+        #                       {'name': 'train', 'cameras' : scene.getTrainCameras()})
 
         for config in validation_configs:
             if config['cameras'] and len(config['cameras']) > 0:
@@ -210,8 +255,11 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                             tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iteration)
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
+                    # visualize_images(image, gt_image)
+                    # print("viewpoint: ", viewpoint.image_name)
                 psnr_test /= len(config['cameras'])
                 l1_test /= len(config['cameras'])          
+                # print(validation_configs,  len(config['cameras']))
                 print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config['name'], l1_test, psnr_test))
                 if tb_writer:
                     tb_writer.add_scalar(config['name'] + '/loss_viewpoint - l1_loss', l1_test, iteration)
@@ -232,7 +280,7 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=6009)
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1,7_000, 30_000])
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1,7_000, 14_000, 25_000,30_000])
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[1,7_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])

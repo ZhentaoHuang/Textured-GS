@@ -16,6 +16,9 @@ from tqdm import tqdm
 from os import makedirs
 from gaussian_renderer import render
 import torchvision
+from torchvision import transforms
+from torchvision.utils import save_image
+from PIL import Image
 from utils.general_utils import safe_state
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams, get_combined_args
@@ -31,7 +34,19 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
         rendering = render(view, gaussians, pipeline, background)["render"]
         gt = view.original_image[0:3, :, :]
-        torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
+        # torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
+        # torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:06d}'.format(idx+1) + ".jpg"))
+
+
+##
+                # Convert tensor to PIL Image
+        pil_image = transforms.ToPILImage()(rendering.squeeze(0))
+
+        # Save as JPEG with high quality
+        file_path = os.path.join(render_path, f'{idx+1:06d}.jpg')
+        pil_image.save(file_path, 'JPEG', quality=95)
+  ##
+  
         torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
 
 def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool):

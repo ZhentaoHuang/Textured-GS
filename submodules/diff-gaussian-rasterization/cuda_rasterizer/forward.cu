@@ -223,12 +223,13 @@ __device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4
     float3 intersection = make_float3(oLocal.x + t * dLocal.x,
                                       oLocal.y + t * dLocal.y,
                                       oLocal.z + t * dLocal.z);
-	if(t > 0)
-	{
-		intersection.x = -intersection.x;
-		intersection.y = -intersection.y;
-		intersection.z = -intersection.z;
-	}
+	// if(oLocal.z < 0)
+	// {
+	// 	// printf("ol: %f\n", oLocal.z);
+	// 	intersection.x = -intersection.x;
+	// 	intersection.y = intersection.y;
+	// 	intersection.z = intersection.z;
+	// }
 
     return intersection;
 }
@@ -306,8 +307,8 @@ __device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4
 __device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::vec3 scale, const float* texture, bool* clamped, float* sig_out, const int deg)
 {
 	// printf("int: %f,%f", intersection.x);
-	float x = intersection.x* (1/(1*sqrt(scale.x) + 0.3f));
-	float y = intersection.y* (1/(1*sqrt(scale.x) + 0.3f));
+	float x = intersection.x* (1/(1*sqrt(scale.x)));
+	float y = intersection.y* (1/(1*sqrt(scale.y)));
 	// printf("int: %f,%f\n", x, y);
 	float z;
 	float length_squared = x * x + y * y;
@@ -352,6 +353,71 @@ __device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::
 
 
 
+// sh[0].x = 0.42;
+// sh[0].y = -0.23;
+// sh[0].z = 0.88;
+
+// sh[1].x = -0.95;
+// sh[1].y = -0.76;
+// sh[1].z = 0.65;
+
+// sh[2].x = 0.34;
+// sh[2].y = -0.11;
+// sh[2].z = -0.45;
+
+// sh[3].x = 0.29;
+// sh[3].y = 0.68;
+// sh[3].z = -0.74;
+
+// sh[4].x = -0.12;
+// sh[4].y = 0.43;
+// sh[4].z = 0.89;
+
+// sh[5].x = -0.26;
+// sh[5].y = 0.17;
+// sh[5].z = -0.92;
+
+// sh[6].x = 0.57;
+// sh[6].y = -0.82;
+// sh[6].z = 0.05;
+
+// sh[7].x = 0.76;
+// sh[7].y = 0.65;
+// sh[7].z = -0.33;
+
+// sh[8].x = -0.49;
+// sh[8].y = -0.87;
+// sh[8].z = 0.03;
+
+// sh[9].x = 0.95;
+// sh[9].y = -0.29;
+// sh[9].z = -0.15;
+
+// sh[10].x = -0.75;
+// sh[10].y = 0.66;
+// sh[10].z = 0.04;
+
+// sh[11].x = -0.98;
+// sh[11].y = 0.19;
+// sh[11].z = 0.06;
+
+// sh[12].x = -0.31;
+// sh[12].y = 0.95;
+// sh[12].z = 0.23;
+
+// sh[13].x = 0.47;
+// sh[13].y = 0.88;
+// sh[13].z = -0.06;
+
+// sh[14].x = 0.15;
+// sh[14].y = -0.58;
+// sh[14].z = -0.81;
+
+// sh[15].x = -0.21;
+// sh[15].y = -0.74;
+// sh[15].z = 0.63;
+
+
 
 
 
@@ -385,7 +451,7 @@ __device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::
 
 		}
 	}
-	result += 0.5f;
+	// result += 0.5f;
 
 
 	// RGB colors are clamped to positive values. If values are
@@ -396,9 +462,14 @@ __device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::
 	// clamped[3 * (idx) + 2] = clamped[3 * (idx) + 2] || (result.z < 0);
 
 	result = 1.0f / (1.0f + glm::exp(-result));
-	sig_out[3 * idx + 0] += result.x;
-	sig_out[3 * idx + 1] += result.y;
-	sig_out[3 * idx + 2] += result.z;
+	// result += 0.5f;
+	// sig_out[3 * idx + 0] += result.x;
+	// sig_out[3 * idx + 1] += result.y;
+	// sig_out[3 * idx + 2] += result.z;
+	// printf("x: %f, y: %f, z: %f\n", result.x, result.y, result.z);
+	// atomicAdd(&sig_out[3 * idx + 0], result.x);
+	// atomicAdd(&sig_out[3 * idx + 1], result.y);
+	// atomicAdd(&sig_out[3 * idx + 2], result.z);
 	// result.x = 1.0f - length_squared;
 	// result.y = 1.0f - length_squared;
 	// result.z = 1.0f - length_squared;
@@ -760,7 +831,7 @@ renderCUDA(
 			float4 con_o = collected_conic_opacity[j];
 
 
-			// con_o.w = 0.39;
+			// con_o.w = 0.99;
 
 
 
@@ -792,7 +863,14 @@ renderCUDA(
 			// printf("mean: %.2f, %.2f, %.2f, ray: %f, %f, %f, p: %f, %f, scales: %f,%f,%f intersection: %f, %f, %f\n", mean.x, mean.y, mean.z,
 			// ray.x, ray.y, ray.z, pixf.x, pixf.y, scales[collected_id[j]].x, scales[collected_id[j]].y, scales[collected_id[j]].z,intersection.x, intersection.y, intersection.z);
 			// printf("x,y : %f, %f intersection: %f,%f,%f\n", pixf.x, pixf.y,intersection.x, intersection.y, intersection.z);
-			pixel_count[collected_id[j]] += 1;
+			
+			// pixel_count[collected_id[j]] += 1;
+
+			atomicAdd(&pixel_count[collected_id[j]], 1);
+			atomicAdd(&sig_out[3 * collected_id[j] + 0], rgb_out.x);
+			atomicAdd(&sig_out[3 * collected_id[j] + 1], rgb_out.y);
+			atomicAdd(&sig_out[3 * collected_id[j] + 2], rgb_out.z);
+			// printf("pixel: %f, %f\n", pixel_count[collected_id[j]], sig_out[3 * collected_id[j] + 0]);
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
 				// C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;

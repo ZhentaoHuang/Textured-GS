@@ -104,7 +104,7 @@ class RGBSphericalHarmonicsTexture(nn.Module):
         P_33 = np.sqrt(35/(2*np.pi)) * (x * (x**2 - 3 * y**2))
 
         harmonics = torch.stack([P_00, P_1m1, P_10, P_11, P_2m2, P_2m1, P_20, P_21, P_22, P_3m3, P_3m2, P_3m1, P_30, P_31, P_32, P_33], dim=0)
-
+        # print(self.coeffs_r.shape)
         # Compute texture for each channel using spherical harmonics coefficients
         for i in range(16):  # Ensure correct indexing according to the number of coefficients
             texture[:, :, 0] += self.coeffs_r[i] * harmonics[i, :, :]
@@ -186,7 +186,7 @@ if __name__ == "__main__":
     initial_output = initial_output.permute(2, 0, 1)  # Reorder dimensions to [Channels, Height, Width]
     initial_output = initial_output.unsqueeze(0)  # Add a batch dimension, making it [1, Channels, Height, Width]
 
-    for epoch in range(1000): # Number of epochs
+    for epoch in range(10000): # Number of epochs
         optimizer.zero_grad()
         output = model()
 
