@@ -53,6 +53,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     means2D = screenspace_points
     opacity = pc.get_opacity
     texture = pc.get_texture
+    texture_opacity = pc.get_texture_opacity
     pixel_count = pc.pixel_count
     sig_out = pc.sig_out
 
@@ -98,6 +99,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         rotations = rotations,
         cov3D_precomp = cov3D_precomp,
         texture = texture,
+        texture_opacity = texture_opacity,
         pixel_count = pixel_count,
         sig_out = sig_out)
 

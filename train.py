@@ -13,6 +13,7 @@ import os
 import torch
 from random import randint
 from utils.loss_utils import l1_loss, ssim
+from lpipsPyTorch import lpips
 from gaussian_renderer import render, network_gui
 import sys
 from scene import Scene, GaussianModel
@@ -71,21 +72,21 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         gaussians.update_learning_rate(iteration)
 
         # Every 1000 its we increase the levels of SH up to a maximum degree
-        # if iteration % 1000 == 0:
-        #     # gaussians.oneupSHdegree()
-        #     print( "text: ", gaussians.get_texture)
-            # print( "xyz: ", gaussians.get_xyz)
+        if iteration % 1000 == 0:
+            gaussians.oneupSHdegree()
+            # print( "text: ", gaussians.get_texture)
+            # print( "opa: ", gaussians.get_texture_opacity)
 
 
-            # print(gaussians.xyz_scheduler_args)
-            # for param_group in gaussians.optimizer.param_groups:
-                # print(f"Epoch {iteration}: Group '{param_group['name']}' Learning Rate: {param_group['lr']}")
+        #     # print(gaussians.xyz_scheduler_args)
+        #     for param_group in gaussians.optimizer.param_groups:
+        #         print(f"Epoch {iteration}: Group '{param_group['name']}' Learning Rate: {param_group['lr']}")
     
         # if iteration % 7000 == 0:
             # gaussians.oneupSHdegree()
 
-        if iteration == 14000 or iteration == 18000 or iteration == 22000:
-            gaussians.oneupSHdegree()
+        # if iteration == 14000 or iteration == 18000 or iteration == 22000:
+        #     gaussians.oneupSHdegree()
 
         # if iteration == 14000:
         #     gaussians.oneupSHdegree()
@@ -110,20 +111,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
         # loss = Ll1
         loss.backward()
-        # torch.nn.utils.clip_grad_value_(gaussians._texture, clip_value=0.002)
-        # params_dict = {id(param): {"label": f"1{name}\n{str(param.size())}\nGrad: {param.requires_grad}"} 
-        #        for name, param in render_pkg["nn"].named_parameters()}
-        # # make_dot(loss, params=dict(render_pkg["nn"].named_parameters())).render("model_graph", format="png")
-        # dot= make_dot(loss, params=dict(render_pkg["nn"].named_parameters()), show_attrs=True, show_saved=True)
 
-        # # for name, param in render_pkg["nn"].named_parameters():
-        # #     print(name, param.size())
-        # # dot = make_dot(image, params=params_dict)
-        # dot.render('model_graph_detailed', format='png')
-
-        # # Print the names and shapes of the parameters
-        # for name, param in render_pkg["nn"].named_parameters():
-        #     print(f"Name: {name}, Shape: {param.size()}, Requires grad: {param.requires_grad}")
 
         iter_end.record()
 
@@ -160,13 +148,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration < opt.iterations:
 
                 # Now check if gradients exist and then zero out the specific dimension
-                if gaussians._scaling.grad is not None:
-                    # pass
-                    # print("shape:",  gaussians._scaling.size())
-                    # Z dimension fixed
-                    gaussians._scaling.grad[:, 2] = 0
-                else:
-                    print("Gradients for _scaling are None, which is unexpected.", gaussians._opacity.size())
+                # if gaussians._scaling.grad is not None:
+                #     # pass
+                #     # print("shape:",  gaussians._scaling.size())
+                #     # Z dimension fixed
+                #     gaussians._scaling.grad[:, 2] = 0
+                # else:
+                #     print("Gradients for _scaling are None, which is unexpected.", gaussians._opacity.size())
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
 
@@ -239,13 +227,13 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
         torch.cuda.empty_cache()
         validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
                               {'name': 'train', 'cameras' : [scene.getTrainCameras()[idx % len(scene.getTrainCameras())] for idx in range(5, 30, 5)]})
-        # validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
-        #                       {'name': 'train', 'cameras' : scene.getTrainCameras()})
 
         for config in validation_configs:
             if config['cameras'] and len(config['cameras']) > 0:
                 l1_test = 0.0
                 psnr_test = 0.0
+                ssims = []
+                lpipss = []
                 for idx, viewpoint in enumerate(config['cameras']):
                     image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
@@ -255,12 +243,24 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                             tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iteration)
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
-                    # visualize_images(image, gt_image)
-                    # print("viewpoint: ", viewpoint.image_name)
+
+                    ssims.append(ssim(image, gt_image))
+                    lpipss.append(lpips(image, gt_image, net_type='vgg'))                    
+
+
                 psnr_test /= len(config['cameras'])
-                l1_test /= len(config['cameras'])          
-                # print(validation_configs,  len(config['cameras']))
-                print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config['name'], l1_test, psnr_test))
+                l1_test /= len(config['cameras']) 
+
+                ssims_test=torch.tensor(ssims).mean()
+                lpipss_test=torch.tensor(lpipss).mean()
+
+                print("\n[ITER {}] Evaluating {}: ".format(iteration, config['name']))
+                print("  SSIM : {:>12.7f}".format(ssims_test.mean(), ".5"))
+                print("  PSNR : {:>12.7f}".format(psnr_test.mean(), ".5"))
+                print("  LPIPS : {:>12.7f}".format(lpipss_test.mean(), ".5"))
+                print("")
+                
+                
                 if tb_writer:
                     tb_writer.add_scalar(config['name'] + '/loss_viewpoint - l1_loss', l1_test, iteration)
                     tb_writer.add_scalar(config['name'] + '/loss_viewpoint - psnr', psnr_test, iteration)
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=6009)
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1,7_000, 14_000, 25_000,30_000])
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1,7_000, 14_000, 20_000,25_000,30_000, 10_0000])
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[1,7_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])

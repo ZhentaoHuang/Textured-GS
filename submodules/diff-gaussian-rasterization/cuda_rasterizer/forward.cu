@@ -193,6 +193,71 @@ __device__ float3 mat3x3_mul_vec3(float R[9], float3 v) {
 }
 
 
+__device__ float3 getIntersection3D(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos, glm::vec3 scale) {
+
+	float3 intersection;
+
+	float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
+	float r = rot.x;
+    float x = rot.y;
+    float y = rot.z;
+    float z = rot.w;
+    float R[9] = {
+        1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
+        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
+        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
+    };
+
+	// Assuming R transforms from local to world, use transpose for world to local
+    // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
+    float3 oLocal = transformR_T(o_t, R); // new center in local space
+    float3 dLocal = transformR_T(ray, R); // new direction in local space
+
+	float A = 	(dLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
+				(dLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
+				(dLocal.z * dLocal.z) / (scale.z + 0.0000001f);
+	float B = 2 * ((oLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
+					(oLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
+					(oLocal.z * dLocal.z) / (scale.z + 0.0000001f));
+	float C = 	(oLocal.x * oLocal.x) / (scale.x + 0.0000001f) + 
+				(oLocal.y * oLocal.y) / (scale.y + 0.0000001f) + 
+				(oLocal.z * oLocal.z) / (scale.z + 0.0000001f) - 1;
+
+	float discriminant = B * B - 4 * A * C;
+
+	if (discriminant < 0)
+	{
+		intersection = make_float3(1.0f,1.0f,1.0f);
+	}
+	else
+	{
+		double sqrt_discriminant = std::sqrt(discriminant);
+		float t0 = (-B - sqrt_discriminant) / (2 * A);
+		float t1 = (-B + sqrt_discriminant) / (2 * A);
+
+		float t = 0;
+		if (t0 < t1)
+		{
+			t = t0;
+		}
+		else
+		{
+			t = t1;
+		}
+
+		intersection = make_float3(oLocal.x + t * dLocal.x,
+                                      oLocal.y + t * dLocal.y,
+                                      oLocal.z + t * dLocal.z);
+	}
+
+	
+
+
+
+	return intersection;
+}
+
+
 __device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos) {
     float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
     float r = rot.x;
@@ -223,13 +288,6 @@ __device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4
     float3 intersection = make_float3(oLocal.x + t * dLocal.x,
                                       oLocal.y + t * dLocal.y,
                                       oLocal.z + t * dLocal.z);
-	// if(oLocal.z < 0)
-	// {
-	// 	// printf("ol: %f\n", oLocal.z);
-	// 	intersection.x = -intersection.x;
-	// 	intersection.y = intersection.y;
-	// 	intersection.z = intersection.z;
-	// }
 
     return intersection;
 }
@@ -304,40 +362,137 @@ __device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4
 	
 
 
-__device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::vec3 scale, const float* texture, bool* clamped, float* sig_out, const int deg)
+
+
+__device__ float computeOpacityFromIntersection(int idx, const float3 intersection, glm::vec3 scale, const float* texture_opacity, bool* clamped, float* sig_out, const int deg)
 {
-	// printf("int: %f,%f", intersection.x);
-	float x = intersection.x* (1/(1*sqrt(scale.x)));
-	float y = intersection.y* (1/(1*sqrt(scale.y)));
-	// printf("int: %f,%f\n", x, y);
-	float z;
-	float length_squared = x * x + y * y;
-	// z = sqrt(1.0f - length_squared);
-	if (length_squared > 1.0f) {
-		// return glm::vec3{0,0,0};
-		// printf("out: %f, %f, %f\n", length_squared, intersection.x, intersection.y);
+
+	float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
+	float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
+	float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
+
+	float length_squared = x * x + y * y + z * z;
+	if (length_squared >1.0f)
+	{
 		float length = sqrt(length_squared);
 		x /= length;
 		y /= length;
-		z = 0.0f; // The z-component becomes zero as the vector lies on the xy-plane
-	} else {
-		z = sqrt(1.0f - length_squared);
+		z /= length;
 	}
-	// printf("int: %f,%f,%f\n", x, y,z);
-	// float x = intersection.x* (1/sqrt(scale.x));
-	// float y = intersection.y* (1/sqrt( scale.y));
-	// printf("x,y: %f, %f, conic_x:%f, conic_y:%f\n", d.x, d.y, conic.x, conic.y);
 
-	// float phi = atan2(x, y);
-	// float ray_l = sqrt(x * x + y * y);
-	// float theta = acos(max(-1.0f, min(1.0f, ray_l / 1)));
+	int max_coeffs = 16;
 
-	// x = sin(theta) * cos(phi);
-	//  y = sin(theta) * sin(phi);
-	// float z = cos(theta);  // Corrected from cos(phi) to cos(theta)
+	float sh[16];
 
-	// int deg = 1;
-	// printf("deg: %d\n", deg);
+	for (int i = 0; i < (deg+1) * (deg+1); i++)
+	{
+		// sh[i].x = texture[idx*max_coeffs + 3*i];
+		// sh[i].y = texture[idx*max_coeffs + 3*i + 1]; 
+		// sh[i].z = texture[idx*max_coeffs + 3*i + 2];
+		sh[i] = texture_opacity[idx * max_coeffs + i];
+	}
+
+
+
+	// l = 0, m = 0
+// sh[0] = 0.7f;  // Ambient term, slightly higher to ensure visibility
+
+// // l = 1, m = -1 to 1
+// sh[1] = 2.0f;  // Enhance directional lighting strength
+// sh[2] = -2.0f; // Strong opposite shadows
+// sh[3] = 1.0f;  // Light from another direction
+
+// // l = 2, m = -2 to 2
+// sh[4] = 1.0f;
+// sh[5] = -1.0f;
+// sh[6] = 0.5f;  // Mild vertical illumination
+// sh[7] = -0.5f;
+// sh[8] = 1.0f;  // Strong horizontal contrast
+
+// // l = 3, m = -3 to 3
+// sh[9] = 0.75f;
+// sh[10] = -0.75f;
+// sh[11] = 0.5f;
+// sh[12] = -0.5f;
+// sh[13] = 0.5f;
+// sh[14] = -0.5f;
+// sh[15] = 0.3f; // Subtle high-degree effects
+
+// 	for (int i = 0; i < 16; i++)
+// 	{
+// 		sh[i] = sh[i] * 5.0f;
+// 	}
+
+
+	float result = SH_C0 * sh[0];
+	if(deg > 0)
+	{
+		result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+	}
+
+	if (deg > 1)
+	{
+		float xx = x * x, yy = y * y, zz = z * z;
+		float xy = x * y, yz = y * z, xz = x * z;
+		result = result +
+			SH_C2[0] * xy * sh[4] +
+			SH_C2[1] * yz * sh[5] +
+			SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
+			SH_C2[3] * xz * sh[7] +
+			SH_C2[4] * (xx - yy) * sh[8];
+		
+		if (deg > 2)
+		{
+			result = result +
+				SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
+				SH_C3[1] * xy * z * sh[10] +
+				SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
+				SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
+				SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
+				SH_C3[5] * z * (xx - yy) * sh[14] +
+				SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
+
+		}
+	}
+
+	result = 1.0f / (1.0f + glm::exp(-result));
+
+	return result;
+}
+
+
+
+
+__device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::vec3 scale, const float* texture, bool* clamped, float* sig_out, const int deg)
+{
+
+	float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
+	float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
+	float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
+
+	// float z;
+	// float length_squared = x * x + y * y;
+	// // z = sqrt(1.0f - length_squared);
+	// if (length_squared > 1.0f) {
+	// 	// return glm::vec3{0,0,0};
+	// 	// printf("out: %f, %f, %f\n", length_squared, intersection.x, intersection.y);
+	// 	float length = sqrt(length_squared);
+	// 	x /= length;
+	// 	y /= length;
+	// 	z = 0.0f; // The z-component becomes zero as the vector lies on the xy-plane
+	// } else {
+	// 	z = sqrt(1.0f - length_squared);
+	// }
+	
+	float length_squared = x * x + y * y + z * z;
+	if (length_squared >1.0f)
+	{
+		float length = sqrt(length_squared);
+		x /= length;
+		y /= length;
+		z /= length;
+	}
+
 	int max_coeffs = 48;
 
 	
@@ -751,6 +906,7 @@ renderCUDA(
 	const float2* __restrict__ points_xy_image,
 	const float* __restrict__ features,
 	const float* __restrict__ texture,
+	const float* __restrict__ texture_opacity,
 	float* rgb,
 	float* __restrict__ pixel_count,
 	float* __restrict__ sig_out,
@@ -836,9 +992,19 @@ renderCUDA(
 
 
 			float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
+			// power = -0.001f;
 			// printf("con_o.x: %f, con_o.y: %f, con_o.y: %f", con_o.x, con_o.y, con_o.z);
 			if (power > 0.0f)
 				continue;
+
+			float3 mean = { means3D[3 * collected_id[j]], means3D[3 * collected_id[j] + 1], means3D[3 * collected_id[j] + 2] };
+			float3 ray = getRayVec(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
+			
+			float3 intersection = getIntersection3D(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
+
+			
+			con_o.w = computeOpacityFromIntersection(collected_id[j], intersection, scales[collected_id[j]], texture_opacity, clamped, sig_out, degree);
+
 
 			// Eq. (2) from 3D Gaussian splatting paper.
 			// Obtain alpha by multiplying with Gaussian opacity
@@ -854,11 +1020,11 @@ renderCUDA(
 				done = true;
 				continue;
 			}
-			float3 mean = { means3D[3 * collected_id[j]], means3D[3 * collected_id[j] + 1], means3D[3 * collected_id[j] + 2] };
-			float3 ray = getRayVec(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
-			
-			float3 intersection = getIntersection(ray, mean, rotations[collected_id[j]], *cam_pos);
 			glm::vec3 rgb_out = computeColorFromD(collected_id[j], intersection, scales[collected_id[j]], texture, clamped, sig_out, degree);
+			// rgb_out.x = 0.99f;
+			// rgb_out.y = 0.99f;
+			// rgb_out.z = 0.99f;
+
 			// glm::vec3 rgb = computeColorFromD(collected_id[j] * 48, d,texture, clamped);
 			// printf("mean: %.2f, %.2f, %.2f, ray: %f, %f, %f, p: %f, %f, scales: %f,%f,%f intersection: %f, %f, %f\n", mean.x, mean.y, mean.z,
 			// ray.x, ray.y, ray.z, pixf.x, pixf.y, scales[collected_id[j]].x, scales[collected_id[j]].y, scales[collected_id[j]].z,intersection.x, intersection.y, intersection.z);
@@ -867,16 +1033,18 @@ renderCUDA(
 			// pixel_count[collected_id[j]] += 1;
 
 			atomicAdd(&pixel_count[collected_id[j]], 1);
-			atomicAdd(&sig_out[3 * collected_id[j] + 0], rgb_out.x);
-			atomicAdd(&sig_out[3 * collected_id[j] + 1], rgb_out.y);
-			atomicAdd(&sig_out[3 * collected_id[j] + 2], rgb_out.z);
+			// atomicAdd(&sig_out[3 * collected_id[j] + 0], rgb_out.x);
+			// atomicAdd(&sig_out[3 * collected_id[j] + 1], rgb_out.y);
+			// atomicAdd(&sig_out[3 * collected_id[j] + 2], rgb_out.z);
 			// printf("pixel: %f, %f\n", pixel_count[collected_id[j]], sig_out[3 * collected_id[j] + 0]);
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
 				// C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
-			rgb[3 * collected_id[j]]= rgb_out.x;
-			rgb[3 * collected_id[j] + 1] = rgb_out.y;
-			rgb[3 * collected_id[j] + 2] = rgb_out.z;
+
+
+			// rgb[3 * collected_id[j]]= rgb_out.x;
+			// rgb[3 * collected_id[j] + 1] = rgb_out.y;
+			// rgb[3 * collected_id[j] + 2] = rgb_out.z;
 				
 			C[0] += rgb_out.x * alpha * T;
 			C[1] += rgb_out.y * alpha * T;
@@ -910,6 +1078,7 @@ void FORWARD::render(
 	const float2* means2D,
 	const float* colors,
 	const float* texture,
+	const float* texture_opacity,
 	float* rgb,
 	float* pixel_count,
 	float* sig_out,
@@ -938,6 +1107,7 @@ void FORWARD::render(
 		means2D,
 		colors,
 		texture,
+		texture_opacity,
 		rgb,
 		pixel_count,
 		sig_out,

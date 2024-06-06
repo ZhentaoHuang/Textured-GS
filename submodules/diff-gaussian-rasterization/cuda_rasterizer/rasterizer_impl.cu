@@ -211,6 +211,7 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* rotations,
 	const float* cov3D_precomp,
 	const float* texture,
+	const float* texture_opacity,
 	float* pixel_count,
 	float* sig_out,
 	const float* viewmatrix,
@@ -338,6 +339,7 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.means2D,
 		feature_ptr,
 		texture,
+		texture_opacity,
 		geomState.rgb,
 		pixel_count,
 		sig_out,
@@ -371,6 +373,7 @@ void CudaRasterizer::Rasterizer::backward(
 	const float* rotations,
 	const float* cov3D_precomp,
 	const float* texture,
+	const float* texture_opacity,
 	const float* sig_out,
 	const float* viewmatrix,
 	const float* projmatrix,
@@ -391,6 +394,7 @@ void CudaRasterizer::Rasterizer::backward(
 	float* dL_dscale,
 	float* dL_drot,
 	float* dL_dtext,
+	float* dL_dtext_opacity,
 	bool debug)
 {
 	GeometryState geomState = GeometryState::fromChunk(geom_buffer, P);
@@ -423,6 +427,7 @@ void CudaRasterizer::Rasterizer::backward(
 		geomState.conic_opacity,
 		color_ptr,
 		texture,
+		texture_opacity,
 		sig_out,
 		imgState.accum_alpha,
 		imgState.n_contrib,
@@ -432,6 +437,7 @@ void CudaRasterizer::Rasterizer::backward(
 		dL_dopacity,
 		dL_dcolor, 
 		dL_dtext,
+		dL_dtext_opacity,
 		geomState.clamped,
 		D,
 		viewmatrix,

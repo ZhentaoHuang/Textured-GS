@@ -60,8 +60,8 @@ def cameraList_from_camInfos(cam_infos, resolution_scale, args):
                  , "DSC05638", "DSC05643"]
 
     for id, c in enumerate(cam_infos):
-        if c.image_name not in name_list:
-            continue
+        # if c.image_name not in name_list:
+        #     continue
         camera_list.append(loadCam(args, id, c, resolution_scale))
 
     return camera_list

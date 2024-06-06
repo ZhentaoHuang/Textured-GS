@@ -56,6 +56,7 @@ namespace FORWARD
 		const float2* points_xy_image,
 		const float* features,
 		const float* texture,
+		const float* texture_opacity,
 		float* rgb,
 		float* pixel_count,
 		float* sig_out,

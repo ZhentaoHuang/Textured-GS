@@ -44,6 +44,7 @@ namespace CudaRasterizer
 			const float* rotations,
 			const float* cov3D_precomp,
 			const float* texture,
+			const float* texture_opacity,
 			float* pixel_count,
 			float* sig_out,
 			const float* viewmatrix,
@@ -67,6 +68,7 @@ namespace CudaRasterizer
 			const float* rotations,
 			const float* cov3D_precomp,
 			const float* texture,
+			const float* texture_opacity,
 			const float* sig_out,
 			const float* viewmatrix,
 			const float* projmatrix,
@@ -87,6 +89,7 @@ namespace CudaRasterizer
 			float* dL_dscale,
 			float* dL_drot,
 			float* dL_dtext,
+			float* dL_dtext_opacity,
 			bool debug);
 	};
 };
