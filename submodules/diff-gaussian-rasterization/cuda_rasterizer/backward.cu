@@ -269,7 +269,7 @@ __device__ float3 getIntersection3D_b(float3 ray, const float3 mean, const glm::
 
 	if (discriminant < 0)
 	{
-		intersection = make_float3(1.0f,1.0f,1.0f);
+		intersection = make_float3(0.0f,0.0f,0.0f);
 	}
 	else
 	{
@@ -314,13 +314,18 @@ __device__ float computeOpacityFromIntersection_f(int idx, const float3 unit_int
 
 	int max_coeffs = 16;
 
-	const float* sh = texture_opacity;
+	// const float* sh = texture_opacity;
 
-	// #pragma unroll
-	// for (int i = 0; i < (deg+1) * (deg+1); i++)
-	// {
-	// 	sh[i] = texture_opacity[i];
-	// }
+
+
+	float sh[16];
+
+	#pragma unroll
+	for (int i = 0; i < (deg+1) * (deg+1); i++)
+	{
+		sh[i] = texture_opacity[idx*max_coeffs + i];
+
+	}
 
 
 
@@ -1239,7 +1244,7 @@ renderCUDA(
 				unit_int.z /= length;
 			}
 
-			con_o.w = computeOpacityFromIntersection_f(collected_id[j], unit_int, &texture_opacity[collected_id[j]], D);
+			con_o.w = computeOpacityFromIntersection_f(collected_id[j], unit_int, texture_opacity, D);
 
 			
 

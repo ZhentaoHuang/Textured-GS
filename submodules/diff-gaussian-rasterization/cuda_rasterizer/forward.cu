@@ -227,7 +227,7 @@ __device__ float3 getIntersection3D(float3 ray, const float3 mean, const glm::ve
 
 	if (discriminant < 0)
 	{
-		intersection = make_float3(1.0f,1.0f,1.0f);
+		intersection = make_float3(0.0f,0.0f,0.0f);
 	}
 	else
 	{
@@ -374,6 +374,7 @@ __device__ float computeOpacityFromIntersection(int idx, const float3 intersecti
 	float length_squared = x * x + y * y + z * z;
 	if (length_squared >1.0f)
 	{
+		// return 0;
 		float length = sqrt(length_squared);
 		x /= length;
 		y /= length;
@@ -783,7 +784,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const glm::vec3* scales,
 	const float scale_modifier,
 	const glm::vec4* rotations,
-	const float* opacities,
+	// const float* opacities,
 	const float* shs,
 	bool* clamped,
 	const float* cov3D_precomp,
@@ -890,7 +891,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	radii[idx] = my_radius;
 	points_xy_image[idx] = point_image;
 	// Inverse 2D covariance and opacity neatly pack into one float4
-	conic_opacity[idx] = { conic.x, conic.y, conic.z, opacities[idx] };
+	conic_opacity[idx] = { conic.x, conic.y, conic.z, 0.99f};//opacities[idx] };
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
 }
 
@@ -1004,7 +1005,7 @@ renderCUDA(
 
 			
 			con_o.w = computeOpacityFromIntersection(collected_id[j], intersection, scales[collected_id[j]], texture_opacity, clamped, sig_out, degree);
-
+			// printf("conw: %f\n", con_o.w);
 
 			// Eq. (2) from 3D Gaussian splatting paper.
 			// Obtain alpha by multiplying with Gaussian opacity
@@ -1136,7 +1137,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const glm::vec3* scales,
 	const float scale_modifier,
 	const glm::vec4* rotations,
-	const float* opacities,
+	// const float* opacities,
 	const float* shs,
 	bool* clamped,
 	const float* cov3D_precomp,
@@ -1163,7 +1164,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		scales,
 		scale_modifier,
 		rotations,
-		opacities,
+		// opacities,
 		shs,
 		clamped,
 		cov3D_precomp,

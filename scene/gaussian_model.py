@@ -16,7 +16,7 @@ from torch import nn
 import os
 from utils.system_utils import mkdir_p
 from plyfile import PlyData, PlyElement
-from utils.sh_utils import RGB2SH, SH2RGB
+from utils.sh_utils import RGB2SH, SH2RGB, SH2OPA, OPA2SH
 from simple_knn._C import distCUDA2
 from utils.graphics_utils import BasicPointCloud
 from utils.general_utils import strip_symmetric, build_scaling_rotation
@@ -194,13 +194,13 @@ class GaussianModel:
         features[:, :3, 0 ] = fused_color
         features[:, :3, 1:] = 0.0
 
-        print("Number of points at initialisation : ", fused_point_cloud.shape[0])
+        print("Number of points at initialisation in create_from_pcd: ", fused_point_cloud.shape[0])
 
         dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
         
         scales = torch.log(torch.sqrt(dist2))[...,None].repeat(1, 3)
         # set z dimension fixed
-        scales[:,2] = -100
+        # scales[:,2] = -100
         # print(scales)
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
@@ -208,13 +208,20 @@ class GaussianModel:
         opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
-        self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(False))
-        self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(False))
+        # self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(False))
+        # self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(False))
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
-        self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        # self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         
+        texture_opacity = torch.zeros((self.get_xyz.shape[0], 16)) 
+        texture_opacity[:,0] = texture_opacity[:,0] * -7.788
+            # no detaching???
+
+            # texture_opacity[:,0] = torch.from_numpy(opacities.copy()).squeeze(1)
+            # texture_opacity[:,0] = texture_opacity[:,0] / 0.28209479177387814
+        # texture_opacity[:, 1:] = 0.0
 
         # t = np.array([[0, 1, 2], [2, 5, 6], [1, 1, 1], [0.5, 0.5, 0.5]], dtype=np.float32)
         # t = np.array([[0.00001, 0.00001, 0.00001], [0.00001, 0.00001, 0.00001], [1, 1, 1], [0.5, 0.5, 0.5],[0.5, 0.5, 0.5],[0.00001, 0.00001, 0.00001], [0.00001, 0.00001, 0.00001], [1, 1, 1], [0.5, 0.5, 0.5]], dtype=np.float32)
@@ -223,7 +230,7 @@ class GaussianModel:
         # tensor_np = features.clone().detach().transpose(1,2)
         # # Convert the numpy array to a PyTorch tensor
         # self._texture = nn.Parameter(torch.tensor(tensor_np, device="cuda").requires_grad_(True))
-
+## TODO direct clone?
         texture_dc = features[:,:,0:1].clone().detach()
         self.active_sh_degree = 0
         # Create a Parameter and ensure it requires gradients
@@ -232,8 +239,13 @@ class GaussianModel:
         texture_rest = torch.zeros((self.get_xyz.shape[0], 3, 15))
         self._texture_dc = nn.Parameter(texture_dc.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
         self._texture_rest = nn.Parameter(texture_rest.clone().detach().requires_grad_(True).transpose(1, 2).contiguous().float().to(device="cuda"))
+        # self._texture_opacity = nn.Parameter(texture_opacity.requires_grad_(True))
+        self._texture_opacity = nn.Parameter(texture_opacity.clone().detach().requires_grad_(True).contiguous().float().to(device="cuda"))
+
         self.sig_out = torch.zeros((self.get_xyz.shape[0], 3), device='cuda').requires_grad_(False)
         self.pixel_count = torch.zeros((self.get_xyz.shape[0]), device="cuda").requires_grad_(False)
+
+        # print(self._scaling, self._xyz)
 
 
 
@@ -251,7 +263,7 @@ class GaussianModel:
 
 
 
-        print("self.spatial_lr_scale", self.spatial_lr_scale, training_args.position_lr_init)
+        # print("self.spatial_lr_scale", self.spatial_lr_scale, training_args.position_lr_init)
         l = [
             {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
             # {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
@@ -262,7 +274,7 @@ class GaussianModel:
             # {'params': [self._texture], 'lr': training_args.feature_lr, "name": "texture"}
             {'params': [self._texture_dc], 'lr': training_args.texture_lr_init, "name": "texture_dc"},
             {'params': [self._texture_rest], 'lr': training_args.texture_lr_init / 10.0, "name": "texture_rest"},
-            {'params': [self._texture_opacity], 'lr': training_args.texture_lr_init/2.0, "name": "texture_opacity"}
+            {'params': [self._texture_opacity], 'lr': training_args.opacity_lr, "name": "texture_opacity"}
         ]
 
         self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
@@ -320,11 +332,11 @@ class GaussianModel:
     def construct_list_of_attributes(self):
         l = ['x', 'y', 'z', 'nx', 'ny', 'nz']
         # All channels except the 3 DC
-        for i in range(self._features_dc.shape[1]*self._features_dc.shape[2]):
-            l.append('f_dc_{}'.format(i))
-        for i in range(self._features_rest.shape[1]*self._features_rest.shape[2]):
-            l.append('f_rest_{}'.format(i))
-        l.append('opacity')
+        # for i in range(self._features_dc.shape[1]*self._features_dc.shape[2]):
+        #     l.append('f_dc_{}'.format(i))
+        # for i in range(self._features_rest.shape[1]*self._features_rest.shape[2]):
+        #     l.append('f_rest_{}'.format(i))
+        # l.append('opacity')
         for i in range(self._scaling.shape[1]):
             l.append('scale_{}'.format(i))
         for i in range(self._rotation.shape[1]):
@@ -392,9 +404,10 @@ class GaussianModel:
 
         xyz = self._xyz.detach().cpu().numpy()
         normals = np.zeros_like(xyz) # No normals
-        f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        opacities = self._opacity.detach().cpu().numpy()
+        # f_dc = self._features_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        # f_rest = self._features_rest.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        # opacities = self._opacity.detach().cpu().numpy()
+        opacities = np.ones((xyz.shape[0], 1))
         scale = self._scaling.detach().cpu().numpy()
         rotation = self._rotation.detach().cpu().numpy()
         texture_dc = self._texture_dc.detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
@@ -404,15 +417,22 @@ class GaussianModel:
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
         elements = np.empty(xyz.shape[0], dtype=dtype_full)
-        attributes = np.concatenate((xyz, normals, f_dc, f_rest,opacities, scale, rotation, texture_dc, texture_rest, texture_opacity), axis=1)
+        attributes = np.concatenate((xyz, normals, scale, rotation, texture_dc, texture_rest, texture_opacity), axis=1)
         elements[:] = list(map(tuple, attributes))
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
 
     def reset_opacity(self):
-        opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
-        optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
-        self._opacity = optimizable_tensors["opacity"]
+        opa = SH2OPA(self.get_texture_opacity[:,0])
+
+        opacities_new = OPA2SH(torch.minimum(opa, torch.ones_like(opa) * 0.01))
+        
+        # opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
+        new_texture_opacity = self.get_texture_opacity.clone().detach()
+        new_texture_opacity[:,0] = opacities_new
+        optimizable_tensors = self.replace_tensor_to_optimizer(new_texture_opacity, "texture_opacity")
+        self._texture_opacity = optimizable_tensors["texture_opacity"]
+        # print("reset_opacity: ", opa.min(), opa.max(), "new: ", opacities_new.min(), opacities_new.max(), self.get_texture_opacity)
 
 
 
@@ -439,12 +459,12 @@ class GaussianModel:
         features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"][:half_point])
 
         # Prepare features_rest for only half of the data
-        extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
-        extra_f_names = sorted(extra_f_names, key=lambda x: int(x.split('_')[-1]))
-        features_extra = np.zeros((half_point, len(extra_f_names)))
-        for idx, attr_name in enumerate(extra_f_names):
-            features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name][:half_point])
-        features_extra = features_extra.reshape((half_point, 3, (self.max_sh_degree + 1) ** 2 - 1))
+        # extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
+        # extra_f_names = sorted(extra_f_names, key=lambda x: int(x.split('_')[-1]))
+        # features_extra = np.zeros((half_point, len(extra_f_names)))
+        # for idx, attr_name in enumerate(extra_f_names):
+        #     features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name][:half_point])
+        # features_extra = features_extra.reshape((half_point, 3, (self.max_sh_degree + 1) ** 2 - 1))
 
         # Assuming texture data exists and there are 48 texture properties
         text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
@@ -456,30 +476,34 @@ class GaussianModel:
 
         else:
             print("No texture loaded, generating zeros!")
-            texture = torch.zeros((half_point, 3, 16))
+            # texture = torch.zeros((half_point, 3, 16))
             
-            texture[:, :, 0] = features_dc.squeeze(-1)
-            texture[:,:,0] = np.clip(texture[:,:,0], 0.000001, 0.9999999)
-            texture[:,:,0] = -np.log((1 - 0.28209479177387814*texture[:,:,0]-0.5)/0.28209479177387814*texture[:,:,0]+0.5)
+            # texture[:, :, 0] = features_dc.squeeze(-1)
+            # texture[:,:,0] = np.clip(texture[:,:,0], 0.000001, 0.9999999)
+            # texture[:,:,0] = -np.log((1 - 0.28209479177387814*texture[:,:,0]-0.5)/0.28209479177387814*texture[:,:,0]+0.5)
             texture_dc = features_dc.clone().detach()
-            # rgb = SH2RGB(texture_dc)
+            rgb = SH2RGB(texture_dc)
 
             # texture_dc = texture_dc.squeeze(-1)
             # texture_dc = np.clip(texture_dc, 0.01, 0.99)
             # texture_dc = -np.log((1 - texture_dc)/texture_dc)
             # texture_dc =  texture_dc * (1 / 0.28209479177387814)
-            # rgb = np.clip(rgb, 0.000001, 0.999999)
+            rgb = np.clip(rgb, 0.000001, 0.999999)
             # texture_dc = -np.log((1 - 0.28209479177387814*texture_dc)/0.28209479177387814*texture_dc)
             # texture_dc = -np.log((1 - rgb)/rgb)
-            texture_dc = texture_dc / 0.28209479177387814
+            texture_dc = OPA2SH(rgb)
+            # texture_dc = texture_dc / 0.28209479177387814
             # texture_dc = 1 / (1 + np.exp(-(0.28209479177387814 * texture_dc + 0.5)))
             # texture_dc = -1/0.281 * np.log(1/(0.281 * texture_dc + 0.5) - 1)
             texture_rest = torch.zeros((half_point, 3, 15))
-            texture_opacity = torch.ones((half_point, 16)) 
+            texture_opacity = torch.zeros((half_point, 16)) 
+            texture_opacity[:,0] = torch.from_numpy(opacities.copy()).squeeze(1)
+
+            
             # no detaching???
 
             # texture_opacity[:,0] = torch.from_numpy(opacities.copy()).squeeze(1)
-            # texture_opacity[:,0] = texture_opacity[:,0] / 0.28209479177387814
+            texture_opacity[:,0] = texture_opacity[:,0] / 0.28209479177387814
             texture_opacity[:, 1:] = 0.0
 
           
@@ -526,10 +550,10 @@ class GaussianModel:
         # Set tensor parameters
         self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(True))
         # self._features_dc = nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
-        self._features_dc = nn.Parameter(features_dc.clone().detach().transpose(1, 2).contiguous().float().to(device="cuda"))
+        # self._features_dc = nn.Parameter(features_dc.clone().detach().transpose(1, 2).contiguous().float().to(device="cuda"))
 
-        self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
-        self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
+        # self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
+        # self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
         # self._scaling = nn.Parameter(scales.clone().detach().requires_grad_(True).contiguous().float().to(device="cuda"))
@@ -552,21 +576,21 @@ class GaussianModel:
         xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
                         np.asarray(plydata.elements[0]["y"]),
                         np.asarray(plydata.elements[0]["z"])),  axis=1)
-        opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
+        # opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
 
-        features_dc = np.zeros((xyz.shape[0], 3, 1))
-        features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
-        features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
-        features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
+        # features_dc = np.zeros((xyz.shape[0], 3, 1))
+        # features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
+        # features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
+        # features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
 
-        extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
-        extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
-        assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
-        features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
-        for idx, attr_name in enumerate(extra_f_names):
-            features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
-        # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
-        features_extra = features_extra.reshape((features_extra.shape[0], 3, (self.max_sh_degree + 1) ** 2 - 1))
+        # extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
+        # extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
+        # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
+        # features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+        # for idx, attr_name in enumerate(extra_f_names):
+        #     features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+        # # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+        # features_extra = features_extra.reshape((features_extra.shape[0], 3, (self.max_sh_degree + 1) ** 2 - 1))
 
 
         # text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_")]
@@ -575,7 +599,7 @@ class GaussianModel:
         # assert len(text_names)==48
         extra_text_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("text_rest_")]
         extra_text_names = sorted(extra_text_names, key = lambda x: int(x.split('_')[-1]))
-        features_dc = torch.from_numpy(features_dc)
+        # features_dc = torch.from_numpy(features_dc)
         if (len(extra_text_names) == 45):
             # print(extra_text_names)
             texture_extra = np.zeros((xyz.shape[0], len(extra_text_names)))
@@ -638,9 +662,9 @@ class GaussianModel:
         print("reading!: ", texture_opacity)
 
         self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._features_dc = nn.Parameter(features_dc.clone().detach().transpose(1, 2).contiguous().float().to(device="cuda"))
-        self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
-        self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
+        # self._features_dc = nn.Parameter(features_dc.clone().detach().transpose(1, 2).contiguous().float().to(device="cuda"))
+        # self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        # self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
         self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
         # self._texture = nn.Parameter(torch.tensor(texture, dtype=torch.float, device="cuda").transpose(2, 1).contiguous().requires_grad_(True))
@@ -672,6 +696,7 @@ class GaussianModel:
     def _prune_optimizer(self, mask):
         optimizable_tensors = {}
         for group in self.optimizer.param_groups:
+            # tensor_name = getattr(group['params'][0], 'name', 'Unnamed Tensor')
             stored_state = self.optimizer.state.get(group['params'][0], None)
             if stored_state is not None:
                 stored_state["exp_avg"] = stored_state["exp_avg"][mask]
@@ -686,6 +711,36 @@ class GaussianModel:
                 group["params"][0] = nn.Parameter(group["params"][0][mask].requires_grad_(True))
                 optimizable_tensors[group["name"]] = group["params"][0]
         return optimizable_tensors
+
+    def prune_points_textured(self, mask):
+        valid_points_mask = ~mask
+        optimizable_tensors = self._prune_optimizer(valid_points_mask)
+
+        # self._xyz = optimizable_tensors["xyz"]
+        # self._features_dc = optimizable_tensors["f_dc"]
+        # self._features_rest = optimizable_tensors["f_rest"]
+        # self._opacity = optimizable_tensors["opacity"]
+        # self._scaling = optimizable_tensors["scaling"]
+        # self._rotation = optimizable_tensors["rotation"]
+
+
+        self._xyz = optimizable_tensors["xyz"]
+        self._texture_dc = optimizable_tensors["texture_dc"]
+        self._texture_rest = optimizable_tensors["texture_rest"]
+        self._texture_opacity = optimizable_tensors["texture_opacity"]
+        self._scaling = optimizable_tensors["scaling"]
+        self._rotation = optimizable_tensors["rotation"]
+
+        
+
+        self.xyz_gradient_accum = self.xyz_gradient_accum[valid_points_mask]
+
+        self.denom = self.denom[valid_points_mask]
+        self.max_radii2D = self.max_radii2D[valid_points_mask]
+
+        self.pixel_count = self.pixel_count[valid_points_mask]
+        self.sig_out = self.sig_out[valid_points_mask]
+
 
     def prune_points(self, mask):
         valid_points_mask = ~mask
@@ -798,6 +853,120 @@ class GaussianModel:
             big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
             prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
         self.prune_points(prune_mask)
+
+        torch.cuda.empty_cache()
+
+
+
+        # l = [
+        #     {'params': [self._xyz], 'lr': training_args.position_lr_init * self.spatial_lr_scale, "name": "xyz"},
+        #     # {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
+        #     # {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
+        #     # {'params': [self._opacity], 'lr': training_args.opacity_lr, "name": "opacity"},
+        #     {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
+        #     {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
+        #     # {'params': [self._texture], 'lr': training_args.feature_lr, "name": "texture"}
+        #     {'params': [self._texture_dc], 'lr': training_args.texture_lr_init, "name": "texture_dc"},
+        #     {'params': [self._texture_rest], 'lr': training_args.texture_lr_init / 10.0, "name": "texture_rest"},
+        #     {'params': [self._texture_opacity], 'lr': training_args.texture_lr_init/2.0, "name": "texture_opacity"}
+        # ]
+
+
+
+    def densification_postfix_textured(self, new_xyz, new_texture_dc, new_texture_rest, new_texture_opacity, new_scaling, new_rotation):
+        d = {"xyz": new_xyz,
+        "scaling" : new_scaling,
+        "rotation" : new_rotation,
+        "texture_dc": new_texture_dc,
+        "texture_rest": new_texture_rest,
+        "texture_opacity": new_texture_opacity}
+
+        optimizable_tensors = self.cat_tensors_to_optimizer(d)
+        self._xyz = optimizable_tensors["xyz"]
+        self._texture_dc = optimizable_tensors["texture_dc"]
+        self._texture_rest = optimizable_tensors["texture_rest"]
+        self._texture_opacity = optimizable_tensors["texture_opacity"]
+        self._scaling = optimizable_tensors["scaling"]
+        self._rotation = optimizable_tensors["rotation"]
+
+        self.xyz_gradient_accum = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
+        self.denom = torch.zeros((self.get_xyz.shape[0], 1), device="cuda")
+        self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+
+        self.pixel_count = torch.zeros((self.get_xyz.shape[0]), device="cuda").requires_grad_(False)
+        self.sig_out = torch.zeros((self.get_xyz.shape[0], 3), device='cuda').requires_grad_(False)
+
+
+
+
+    def densify_and_clone_textured(self, grads, grad_threshold, scene_extent):
+        # Extract points that satisfy the gradient condition
+        selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
+        selected_pts_mask = torch.logical_and(selected_pts_mask,
+                                              torch.max(self.get_scaling, dim=1).values <= self.percent_dense*scene_extent)
+        
+        new_xyz = self._xyz[selected_pts_mask]
+        # new_features_dc = self._features_dc[selected_pts_mask]
+        # new_features_rest = self._features_rest[selected_pts_mask]
+        # new_opacities = self._opacity[selected_pts_mask]
+        new_texture_dc = self._texture_dc[selected_pts_mask]
+        new_texture_rest = self._texture_rest[selected_pts_mask]
+        new_texture_opacity = self._texture_opacity[selected_pts_mask]
+        new_scaling = self._scaling[selected_pts_mask]
+        new_rotation = self._rotation[selected_pts_mask]
+
+        self.densification_postfix_textured(new_xyz, new_texture_dc, new_texture_rest, new_texture_opacity, new_scaling, new_rotation)
+
+
+
+    def densify_and_split_textured(self, grads, grad_threshold, scene_extent, N=2):
+        n_init_points = self.get_xyz.shape[0]
+        # Extract points that satisfy the gradient condition
+        padded_grad = torch.zeros((n_init_points), device="cuda")
+        padded_grad[:grads.shape[0]] = grads.squeeze()
+        selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
+        selected_pts_mask = torch.logical_and(selected_pts_mask,
+                                              torch.max(self.get_scaling, dim=1).values > self.percent_dense*scene_extent)
+
+        
+        stds = self.get_scaling[selected_pts_mask].repeat(N,1)
+        means =torch.zeros((stds.size(0), 3),device="cuda")
+        samples = torch.normal(mean=means, std=stds)
+        rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N,1,1)
+        new_xyz = torch.bmm(rots, samples.unsqueeze(-1)).squeeze(-1) + self.get_xyz[selected_pts_mask].repeat(N, 1)
+        new_scaling = self.scaling_inverse_activation(self.get_scaling[selected_pts_mask].repeat(N,1) / (0.8*N))
+        new_rotation = self._rotation[selected_pts_mask].repeat(N,1)
+        new_texture_dc = self._texture_dc[selected_pts_mask].repeat(N,1,1)
+        new_texture_rest = self._texture_rest[selected_pts_mask].repeat(N,1,1)
+        new_texture_opacity = self._texture_opacity[selected_pts_mask].repeat(N,1)
+
+        # self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_opacity, new_scaling, new_rotation)
+        self.densification_postfix_textured(new_xyz, new_texture_dc, new_texture_rest, new_texture_opacity, new_scaling, new_rotation)
+
+        prune_filter = torch.cat((selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool)))
+
+        self.prune_points_textured(prune_filter)
+
+
+    def densify_and_prune_textured(self, max_grad, min_opacity, extent, max_screen_size):
+        grads = self.xyz_gradient_accum / self.denom
+        grads[grads.isnan()] = 0.0
+
+        if self.get_xyz.shape[0] <= 5000000:
+            self.densify_and_clone_textured(grads, max_grad, extent)
+            self.densify_and_split_textured(grads, max_grad, extent)
+        
+
+        opa = SH2OPA(self.get_texture_opacity[:,0])
+        # opa = torch.sigmoid(opa)
+        prune_mask = (opa < min_opacity).squeeze()
+        # prune_mask = torch.zeros(self.get_xyz.shape[0],  dtype=torch.bool)
+        # print("prune_maks:", prune_mask.sum())
+        if max_screen_size:
+            big_points_vs = self.max_radii2D > max_screen_size
+            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+        self.prune_points_textured(prune_mask)
 
         torch.cuda.empty_cache()
 

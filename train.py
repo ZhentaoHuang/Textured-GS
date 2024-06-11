@@ -50,7 +50,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
-    print("gaussian size: ", gaussians._opacity.shape)
+    print("gaussian size: ", gaussians.get_xyz.shape)
     for iteration in range(first_iter, opt.iterations + 1):        
         if network_gui.conn == None:
             network_gui.try_connect()
@@ -74,6 +74,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # Every 1000 its we increase the levels of SH up to a maximum degree
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
+            print("gaussians size:" ,gaussians.get_xyz.shape)
             # print( "text: ", gaussians.get_texture)
             # print( "opa: ", gaussians.get_texture_opacity)
 
@@ -85,7 +86,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # if iteration % 7000 == 0:
             # gaussians.oneupSHdegree()
 
-        # if iteration == 14000 or iteration == 18000 or iteration == 22000:
+        # if iteration == 16000 or iteration == 18000 or iteration == 20000:
         #     gaussians.oneupSHdegree()
 
         # if iteration == 14000:
@@ -134,27 +135,19 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration < opt.densify_until_iter:
                 # Keep track of max radii in image-space for pruning
                 gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
-                # gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
+                gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
                 # if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                 #     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
-                #     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
+                #     gaussians.densify_and_prune_textured(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                 
                 # if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
-                #     print("reset!")
+                #     # print("reset!")
                 #     gaussians.reset_opacity()
 
             # Optimizer step
             if iteration < opt.iterations:
 
-                # Now check if gradients exist and then zero out the specific dimension
-                # if gaussians._scaling.grad is not None:
-                #     # pass
-                #     # print("shape:",  gaussians._scaling.size())
-                #     # Z dimension fixed
-                #     gaussians._scaling.grad[:, 2] = 0
-                # else:
-                #     print("Gradients for _scaling are None, which is unexpected.", gaussians._opacity.size())
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
 

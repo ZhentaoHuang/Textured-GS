@@ -23,7 +23,7 @@ def rasterize_gaussians(
     means2D,
     sh,
     colors_precomp,
-    opacities,
+    # opacities,
     scales,
     rotations,
     cov3Ds_precomp,
@@ -38,7 +38,7 @@ def rasterize_gaussians(
         means2D,
         sh,
         colors_precomp,
-        opacities,
+        # opacities,
         scales,
         rotations,
         cov3Ds_precomp,
@@ -57,7 +57,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         means2D,
         sh,
         colors_precomp,
-        opacities,
+        # opacities,
         scales,
         rotations,
         cov3Ds_precomp,
@@ -73,7 +73,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.bg, 
             means3D,
             colors_precomp,
-            opacities,
+            # opacities,
             scales,
             rotations,
             raster_settings.scale_modifier,
@@ -168,26 +168,30 @@ class _RasterizeGaussians(torch.autograd.Function):
              grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_cov3Ds_precomp, grad_sh, grad_scales, grad_rotations, grad_text, grad_text_opacities = _C.rasterize_gaussians_backward(*args)
         # grad_text = torch.zeros_like(texture)
         # print("shape",grad_text.shape, pixel_count.shape)
-        pixel_count = pixel_count.unsqueeze(2) 
-        grad_text_1 = grad_text / pixel_count
-        grad_text_opacities  = grad_text_opacities / pixel_count.squeeze(-1)
+        # pixel_count = pixel_count.unsqueeze(2) 
+        # grad_text_1 = grad_text / pixel_count
+
+
+        # grad_text_opacities  = grad_text_opacities / pixel_count.squeeze(-1)
+        
+        
         # grad_text_opacities  = None
         # print("grad_text_1: ",pixel_count.shape, grad_text_opacities.shape)
         # pixel_count.zero_()
         # sig_out.zero_()
 
-        clamped_grad_text = torch.clamp(grad_text_1, min=-0.05, max=0.05)
+        # clamped_grad_text = torch.clamp(grad_text_1, min=-0.05, max=0.05)
         # print(grad_text_1)
         grads = (
             grad_means3D,
             grad_means2D,
             None,
             grad_colors_precomp,
-            grad_opacities,
+            # grad_opacities,
             grad_scales,
             grad_rotations,
             grad_cov3Ds_precomp,
-            clamped_grad_text,
+            grad_text,
             grad_text_opacities,
             None,
             None,
@@ -227,7 +231,7 @@ class GaussianRasterizer(nn.Module):
             
         return visible
 
-    def forward(self, means3D, means2D, opacities, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None, texture_opacity = None, pixel_count = None, sig_out=None):
+    def forward(self, means3D, means2D, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None, texture_opacity = None, pixel_count = None, sig_out=None):
         
         raster_settings = self.raster_settings
 
@@ -255,7 +259,7 @@ class GaussianRasterizer(nn.Module):
             means2D,
             shs,
             colors_precomp,
-            opacities,
+            # opacities,
             scales, 
             rotations,
             cov3D_precomp,

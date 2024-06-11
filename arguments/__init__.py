@@ -78,11 +78,11 @@ class OptimizationParams(ParamGroup):
 
         self.texture_lr_max_steps = 30000
         self.texture_lr_init = 0.0025   #best:0.001 for both
-        self.texture_lr_final = 0.000025 # 0.0025
+        self.texture_lr_final = 0.0025 # 0.0025
         self.texture_lr_delay_mult = 0.01
 
         self.feature_lr = 0.00025 # 0.0025
-        self.opacity_lr = 0.05
+        self.opacity_lr = 0.0025 #0.05
         self.scaling_lr = 0.005
         self.rotation_lr = 0.001
         self.percent_dense = 0.01

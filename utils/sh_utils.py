@@ -116,3 +116,10 @@ def RGB2SH(rgb):
 
 def SH2RGB(sh):
     return sh * C0 + 0.5
+
+def SH2OPA(sh):
+    return torch.sigmoid(sh * C0)
+
+def OPA2SH(opa):
+    opa = torch.clamp(opa, min=1e-6, max=1-1e-6)
+    return -torch.log((1 - opa) / opa) / C0
