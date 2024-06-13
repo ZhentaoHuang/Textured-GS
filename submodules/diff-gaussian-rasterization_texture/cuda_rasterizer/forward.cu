@@ -159,26 +159,6 @@ __device__ float3 getRayVec(float2 pix, int W, int H, const float* viewMatrix, c
     // rayDirection = make_float3(rayDirection.x / norm, rayDirection.y / norm, rayDirection.z / norm);
 	// Minus campos
 
-	if (projMatrix[0] - 0.937958 < 0.00001f && projMatrix[0] - 0.937958 > -0.00001f && pix.x < 348 && pix.x >346 && pix.y < 266 && pix.y > 264)
-	{
-
-	
-	//  printf("Pixel: (%.2f, %.2f), clipCoords: (%.4f, %.4f, %.4f, %.4f),campos: (%.4f, %.4f, %.4f), camCoords: (%.4f, %.4f, %.4f, %.4f), "
-    //        "World: (%.4f, %.4f, %.4f, %.4f), Ray: (%.4f, %.4f, %.4f), proj[0]: %f, rot: (%.4f, %.4f, %.4f, %.4f), mean: (%.4f, %.4f, %.4f)\n",
-    //        pix.x, pix.y, clipCoords.x, clipCoords.y, clipCoords.z, clipCoords.w,campos.x, campos.y, campos.z, camCoords.x, camCoords.y, camCoords.z, camCoords.w,
-    //        worldCoords.x, worldCoords.y, worldCoords.z, worldCoords.w,
-    //        rayDirection.x, rayDirection.y, rayDirection.z, projMatrix[0], rot.x, rot.y, rot.z, rot.w, mean.x, mean.y, mean.z);
-
-	// 	   	printf("Projection Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f], inv Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
-    //    projMatrix[0], projMatrix[1], projMatrix[2], projMatrix[3],
-    //    projMatrix[4], projMatrix[5], projMatrix[6], projMatrix[7],
-    //    projMatrix[8], projMatrix[9], projMatrix[10], projMatrix[11],
-    //    projMatrix[12], projMatrix[13], projMatrix[14], projMatrix[15],
-    //    invProj[0], invProj[1], invProj[2], invProj[3],
-    //    invProj[4], invProj[5], invProj[6], invProj[7],
-    //    invProj[8], invProj[9], invProj[10], invProj[11],
-    //    invProj[12], invProj[13], invProj[14], invProj[15]);
-	}
     return rayDirection;
 }
 
