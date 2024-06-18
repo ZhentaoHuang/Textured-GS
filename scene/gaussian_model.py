@@ -440,7 +440,7 @@ class GaussianModel:
         plydata = PlyData.read(path)
 
         # Calculate half of the number of data points
-        half_point = len(plydata.elements[0]["x"]) // 2
+        half_point = len(plydata.elements[0]["x"]) // 1
         # half_point = 5000
         # half_point =1200
 
@@ -528,7 +528,7 @@ class GaussianModel:
             scales[:, idx] = np.asarray(plydata.elements[0][attr_name][:half_point])
         # scales = torch.from_numpy(scales)
         # scales[:,2] = -100
-        scales[:,2] = scales[:,0]*2
+        # scales[:,2] = scales[:,0]*2
 
         rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
         rot_names = sorted(rot_names, key=lambda x: int(x.split('_')[-1]))
