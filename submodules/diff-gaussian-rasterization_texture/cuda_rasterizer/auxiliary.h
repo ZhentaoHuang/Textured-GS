@@ -43,6 +43,11 @@ __forceinline__ __device__ float ndc2Pix(float v, int S)
 	return ((v + 1.0) * S - 1.0) * 0.5;
 }
 
+__forceinline__ __device__ float Pix2ndc(float r, int S)
+{
+	return (2*r+1)/S-1;
+}
+
 __forceinline__ __device__ float4 transformFloat4_4x4(const float4& p, const float* matrix)
 {
 	float4 transformed = {

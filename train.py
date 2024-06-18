@@ -74,9 +74,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # Every 1000 its we increase the levels of SH up to a maximum degree
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
-            print("gaussians size:" ,gaussians.get_xyz.shape)
-            # print( "text: ", gaussians.get_texture)
-            # print( "opa: ", gaussians.get_texture_opacity)
+            # print("gaussians size:" ,gaussians.get_xyz.shape)
+            # # print( "text: ", gaussians.get_texture)
+            print( "opa: ", gaussians.get_scaling)
 
 
         #     # print(gaussians.xyz_scheduler_args)
@@ -273,8 +273,8 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=6009)
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1,7_000, 10_000, 14_000, 20_000,25_000,30_000, 10_0000])
-    parser.add_argument("--save_iterations", nargs="+", type=int, default=[1,7_000, 30_000])
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[1,7_000, 10_000, 14_000, 20_000,25_000,30_000])
+    parser.add_argument("--save_iterations", nargs="+", type=int, default=[14_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)

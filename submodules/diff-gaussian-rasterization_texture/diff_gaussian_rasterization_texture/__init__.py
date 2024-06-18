@@ -18,7 +18,7 @@ def cpu_deep_copy_tuple(input_tuple):
     copied_tensors = [item.cpu().clone() if isinstance(item, torch.Tensor) else item for item in input_tuple]
     return tuple(copied_tensors)
 
-def rasterize_gaussians(
+def rasterize_gaussians_texture(
     means3D,
     means2D,
     sh,
@@ -33,7 +33,7 @@ def rasterize_gaussians(
     sig_out,
     raster_settings,
 ):
-    return _RasterizeGaussians.apply(
+    return _RasterizeGaussiansTexture.apply(
         means3D,
         means2D,
         sh,
@@ -49,7 +49,7 @@ def rasterize_gaussians(
         raster_settings,
     )
 
-class _RasterizeGaussians(torch.autograd.Function):
+class _RasterizeGaussiansTexture(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
@@ -127,6 +127,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         # print("shape",sig_out.shape, pixel_count.shape)
         pixel_count = pixel_count.unsqueeze(1)
         sig_out = sig_out / pixel_count
+        sig_out = sig_out * 0
         # sig_out.zero_()
         # print("sig_out: ",sig_out, "pix: ",pixel_count)
         # Restructure args as C++ method expects them
@@ -254,7 +255,7 @@ class GaussianRasterizer(nn.Module):
             cov3D_precomp = torch.Tensor([])
 
         # Invoke C++/CUDA rasterization routine
-        return rasterize_gaussians(
+        return rasterize_gaussians_texture(
             means3D,
             means2D,
             shs,

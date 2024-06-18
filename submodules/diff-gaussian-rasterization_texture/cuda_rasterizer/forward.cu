@@ -102,11 +102,20 @@ __device__ void invertAndTransposeMatrix(const float *mat, float *invMat) {
 __device__ float3 getRayVec(float2 pix, int W, int H, const float* viewMatrix, const float* projMatrix, glm::vec3 campos, float3 mean, const glm::vec4 rot)
 {
     // Convert pixel coordinates to normalized device coordinates (NDC)
-    float ndcX = 2.0f * ((pix.x + 0.5f) / W) - 1.0f;
-    float ndcY = 2.0f * ((pix.y + 0.5f) / H) - 1.0f;
+    float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
+    float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
+
+
+		//inverse process of 'Transform point by projecting'
+	float p_hom_x_r = ndcX*(1.0000001);
+	float p_hom_y_r = ndcY*(1.0000001);
+	// self.zfar = 100.0, self.znear = 0.01
+	float p_hom_z_r = (100+0.01-1)/(100-0.01);
+	float p_hom_w_r = 1;
 
     // Define point in clip coordinates as float4 for handling perspective division
-    float4 clipCoords = make_float4(ndcX, ndcY, -0.01f, 1.0f);  // w = 1.0f for perspective division
+    // float4 clipCoords = make_float4(ndcX, ndcY, -0.01f, 1.0f);  // w = 1.0f for perspective division
+	float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
 	// float real_viewMatrix[16];
 
 	// for (int i = 0; i < 16; i++)
@@ -193,7 +202,17 @@ __device__ float3 getIntersection3D(float3 ray, const float3 mean, const glm::ve
     float3 oLocal = transformR_T(o_t, R); // new center in local space
     float3 dLocal = transformR_T(ray, R); // new direction in local space
 
-	float A = 	(dLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
+	// float A = 	(dLocal.x * dLocal.x) / (scale.x * scale.x *9.0f  + 0.0000001f) + 
+	// 			(dLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
+	// 			(dLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f);
+	// float B = 2 * ((oLocal.x * dLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
+	// 				(oLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
+	// 				(oLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f));
+	// float C = 	(oLocal.x * oLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
+	// 			(oLocal.y * oLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
+	// 			(oLocal.z * oLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f) - 1;
+
+	float A = 	(dLocal.x * dLocal.x) / (scale.x   + 0.0000001f) + 
 				(dLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
 				(dLocal.z * dLocal.z) / (scale.z + 0.0000001f);
 	float B = 2 * ((oLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
@@ -205,9 +224,85 @@ __device__ float3 getIntersection3D(float3 ray, const float3 mean, const glm::ve
 
 	float discriminant = B * B - 4 * A * C;
 
-	if (discriminant < 0)
+	if (discriminant < 0 )
 	{
 		intersection = make_float3(0.0f,0.0f,0.0f);
+	}
+	else
+	{
+		double sqrt_discriminant = std::sqrt(discriminant);
+		float t0 = (-B - sqrt_discriminant) / (2 * A);
+		float t1 = (-B + sqrt_discriminant) / (2 * A);
+
+		float t = 0;
+		if (t0 < t1)
+		{
+			t = t0;
+		}
+		else
+		{
+			t = t1;
+		}
+
+		intersection = make_float3(oLocal.x + t * dLocal.x,
+                                      oLocal.y + t * dLocal.y,
+                                      oLocal.z + t * dLocal.z);
+	}
+
+	
+
+
+
+	return intersection;
+}
+
+
+
+__device__ float3 getIntersection3D_1(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos, glm::vec3 scale) {
+
+	float3 intersection;
+
+	float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
+	float r = rot.x;
+    float x = rot.y;
+    float y = rot.z;
+    float z = rot.w;
+    float R[9] = {
+        1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
+        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
+        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
+    };
+
+	// Assuming R transforms from local to world, use transpose for world to local
+    // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
+    float3 oLocal = transformR_T(o_t, R); // new center in local space
+    float3 dLocal = transformR_T(ray, R); // new direction in local space
+
+	float A = 	(dLocal.x * dLocal.x) / (scale.x * scale.x *16.0f  + 0.0000001f) + 
+				(dLocal.y * dLocal.y) / (scale.y * scale.y *16.0f+ 0.0000001f) + 
+				(dLocal.z * dLocal.z) / (scale.z * scale.z *16.0f+ 0.0000001f);
+	float B = 2 * ((oLocal.x * dLocal.x) / (scale.x * scale.x *16.0f+ 0.0000001f) + 
+					(oLocal.y * dLocal.y) / (scale.y * scale.y *16.0f+ 0.0000001f) + 
+					(oLocal.z * dLocal.z) / (scale.z * scale.z *16.0f+ 0.0000001f));
+	float C = 	(oLocal.x * oLocal.x) / (scale.x * scale.x *16.0f+ 0.0000001f) + 
+				(oLocal.y * oLocal.y) / (scale.y * scale.y *16.0f+ 0.0000001f) + 
+				(oLocal.z * oLocal.z) / (scale.z * scale.z *16.0f+ 0.0000001f) - 1;
+
+	// float A = 	(dLocal.x * dLocal.x) / (scale.x   + 0.0000001f) + 
+	// 			(dLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
+	// 			(dLocal.z * dLocal.z) / (scale.z + 0.0000001f);
+	// float B = 2 * ((oLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
+	// 				(oLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
+	// 				(oLocal.z * dLocal.z) / (scale.z + 0.0000001f));
+	// float C = 	(oLocal.x * oLocal.x) / (scale.x + 0.0000001f) + 
+	// 			(oLocal.y * oLocal.y) / (scale.y + 0.0000001f) + 
+	// 			(oLocal.z * oLocal.z) / (scale.z + 0.0000001f) - 1;
+
+	float discriminant = B * B - 4 * A * C;
+
+	if (discriminant < 0)
+	{
+		intersection = make_float3(1.0f,1.0f,1.0f);
 	}
 	else
 	{
@@ -347,19 +442,41 @@ __device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4
 __device__ float computeOpacityFromIntersection(int idx, const float3 intersection, glm::vec3 scale, const float* texture_opacity, bool* clamped, float* sig_out, const int deg)
 {
 
-	float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
-	float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
-	float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
+	// float x = intersection.x*intersection.x* (1/(9.0f*((scale.x))*scale.x + 0.0000001f));
+	// float y = intersection.y*intersection.y* (1/(9.0f*((scale.y))*scale.y + 0.0000001f));
+	// float z = intersection.z*intersection.z* (1/(9.0f*((scale.z))*scale.z + 0.0000001f));
 
+	// float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
+	// float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
+	// float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
+
+	float x = intersection.x* (1/(4.0f*scale.x + 0.0000001f));
+	float y = intersection.y* (1/(4.0f*scale.y + 0.0000001f));
+	float z = intersection.z* (1/(4.0f*scale.z + 0.0000001f));
+
+	// float z;
+	// float length_squared = x * x + y * y;
+	// // z = sqrt(1.0f - length_squared);
+	// if (length_squared > 1.0f) {
+	// 	// return glm::vec3{0,0,0};
+	// 	// printf("out: %f, %f, %f\n", length_squared, intersection.x, intersection.y);
+	// 	float length = sqrt(length_squared);
+	// 	x /= length;
+	// 	y /= length;
+	// 	z = 0.0f; // The z-component becomes zero as the vector lies on the xy-plane
+	// } else {
+	// 	z = sqrt(1.0f - length_squared);
+	// }
+	
 	float length_squared = x * x + y * y + z * z;
-	if (length_squared >1.0f)
+	if (length_squared >0.0f)
 	{
-		// return 0;
 		float length = sqrt(length_squared);
 		x /= length;
 		y /= length;
 		z /= length;
 	}
+
 
 	int max_coeffs = 16;
 
@@ -399,10 +516,10 @@ __device__ float computeOpacityFromIntersection(int idx, const float3 intersecti
 // sh[14] = -0.5f;
 // sh[15] = 0.3f; // Subtle high-degree effects
 
-// 	for (int i = 0; i < 16; i++)
-// 	{
-// 		sh[i] = sh[i] * 5.0f;
-// 	}
+	// for (int i = 0; i < 16; i++)
+	// {
+	// 	sh[i] = sh[i] * 5.0f;
+	// }
 
 
 	float result = SH_C0 * sh[0];
@@ -435,7 +552,7 @@ __device__ float computeOpacityFromIntersection(int idx, const float3 intersecti
 
 		}
 	}
-
+	// printf("result: %f, %f,%f,%f,%f\n", result, x, y, z, sh[8]);
 	result = 1.0f / (1.0f + glm::exp(-result));
 
 	return result;
@@ -447,9 +564,17 @@ __device__ float computeOpacityFromIntersection(int idx, const float3 intersecti
 __device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::vec3 scale, const float* texture, bool* clamped, float* sig_out, const int deg)
 {
 
-	float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
-	float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
-	float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
+	// float x = intersection.x* intersection.x*(1/(9.0f*((scale.x))*scale.x + 0.0000001f));
+	// float y = intersection.y* intersection.y*(1/(9.0f*((scale.y))*scale.y + 0.0000001f));
+	// float z = intersection.z* intersection.z*(1/(9.0f*((scale.z))*scale.z + 0.0000001f));
+
+	float x = intersection.x* (1/(4.0f*scale.x + 0.0000001f));
+	float y = intersection.y* (1/(4.0f*scale.y + 0.0000001f));
+	float z = intersection.z* (1/(4.0f*scale.z + 0.0000001f));
+
+	// float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
+	// float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
+	// float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
 
 	// float z;
 	// float length_squared = x * x + y * y;
@@ -466,7 +591,7 @@ __device__ glm::vec3 computeColorFromD(int idx, const float3 intersection, glm::
 	// }
 	
 	float length_squared = x * x + y * y + z * z;
-	if (length_squared >1.0f)
+	if (length_squared >0.0f)
 	{
 		float length = sqrt(length_squared);
 		x /= length;
@@ -936,6 +1061,35 @@ renderCUDA(
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
 
+
+	// // Compute Pixel-Ray
+	// glm::mat4 matrix = glm::make_mat4x4(projmatrix);
+    // glm::mat4 matrix_temp = glm::inverse(matrix);
+	// float *projmatrix_inv = glm::value_ptr(matrix_temp);
+
+	// glm::vec3 ray_origin = *cam_pos;
+	// glm::vec3 point_rec = {0,0,0};
+
+	// float3 p_proj_r = { Pix2ndc(pixf.x, W), Pix2ndc(pixf.y, H), 1};
+
+	// //inverse process of 'Transform point by projecting'
+	// float p_hom_x_r = p_proj_r.x*(1.0000001);
+	// float p_hom_y_r = p_proj_r.y*(1.0000001);
+	// // self.zfar = 100.0, self.znear = 0.01
+	// float p_hom_z_r = (100+0.01-1)/(100-0.01);
+	// float p_hom_w_r = 1;
+
+
+	// float3 p_hom_r={p_hom_x_r, p_hom_y_r, p_hom_z_r};
+	// float4 p_orig_r=transformPoint4x4(p_hom_r, projmatrix_inv);
+
+	// glm::vec3 ray_direction={
+	// 	p_orig_r.x-ray_origin.x,
+	// 	p_orig_r.y-ray_origin.y,
+	// 	p_orig_r.z-ray_origin.z,
+	// };
+	// glm::vec3 normalized_ray_direction = glm::normalize(ray_direction);
+
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
 	{
@@ -981,17 +1135,23 @@ renderCUDA(
 			float3 mean = { means3D[3 * collected_id[j]], means3D[3 * collected_id[j] + 1], means3D[3 * collected_id[j] + 2] };
 			float3 ray = getRayVec(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
 			
-			float3 intersection = getIntersection3D(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
-
+			float3 intersection1 = getIntersection3D(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
+			float3 intersection = getIntersection3D_1(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
 			
 			con_o.w = computeOpacityFromIntersection(collected_id[j], intersection, scales[collected_id[j]], texture_opacity, clamped, sig_out, degree);
 			// printf("conw: %f\n", con_o.w);
-
-			// Eq. (2) from 3D Gaussian splatting paper.
+			// if( length_squared == 0)
+			// 	con_o.w = 0;
+			// Eq. (2) from 3D Gaussian splatting paper.s
 			// Obtain alpha by multiplying with Gaussian opacity
 			// and its exponential falloff from mean.
 			// Avoid numerical instabilities (see paper appendix). 
 			float alpha = min(0.99f, con_o.w * exp(power));
+			// if(intersection1.x !=0 || intersection.x !=0)
+			// 	printf("int: %f,%f,%f, int1: %f,%f%f, alpha: %f, con_o.w:%f, G%f, s:%f,%f,%f,\n", intersection.x, intersection.y, intersection.z, 
+			// 	intersection1.x, intersection1.y, intersection1.z, alpha, con_o.w, exp(power), scales[collected_id[j]].x, scales[collected_id[j]].y,
+			// 	scales[collected_id[j]].z);
+
 			// alpha = 0.99f;
 			if (alpha < 1.0f / 255.0f)
 				continue;
@@ -1002,6 +1162,14 @@ renderCUDA(
 				continue;
 			}
 			glm::vec3 rgb_out = computeColorFromD(collected_id[j], intersection, scales[collected_id[j]], texture, clamped, sig_out, degree);
+			// if (intersection.x == intersection.y == intersection.z == 0)
+			// {
+			// 	rgb_out.x = 0.99f;
+			// rgb_out.y = 0.0f;
+			// rgb_out.z = 0.0f;
+			// }
+
+
 			// rgb_out.x = 0.99f;
 			// rgb_out.y = 0.99f;
 			// rgb_out.z = 0.99f;
