@@ -273,7 +273,7 @@ class GaussianModel:
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"},
             # {'params': [self._texture], 'lr': training_args.feature_lr, "name": "texture"}
             {'params': [self._texture_dc], 'lr': training_args.texture_lr_init, "name": "texture_dc"},
-            {'params': [self._texture_rest], 'lr': training_args.texture_lr_init / 10.0, "name": "texture_rest"},
+            {'params': [self._texture_rest], 'lr': training_args.texture_lr_init, "name": "texture_rest"},
             {'params': [self._texture_opacity], 'lr': training_args.opacity_lr, "name": "texture_opacity"}
         ]
 
@@ -528,7 +528,7 @@ class GaussianModel:
             scales[:, idx] = np.asarray(plydata.elements[0][attr_name][:half_point])
         # scales = torch.from_numpy(scales)
         # scales[:,2] = -100
-        # scales[:,2] = scales[:,0]*2
+        # scales[:,2] = scales[:,0]*1
 
         rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
         rot_names = sorted(rot_names, key=lambda x: int(x.split('_')[-1]))

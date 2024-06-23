@@ -264,32 +264,32 @@ __device__ float3 getIntersection3D_b(float3 ray, const float3 mean, const glm::
     // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
     float3 oLocal = transformR_T(o_t, R); // new center in local space
     float3 dLocal = transformR_T(ray, R); // new direction in local space
-	float A = 	(dLocal.x * dLocal.x) / (scale.x * scale.x *9.0f  + 0.0000001f) + 
-				(dLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-				(dLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f);
-	float B = 2 * ((oLocal.x * dLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
-					(oLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-					(oLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f));
-	float C = 	(oLocal.x * oLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
-				(oLocal.y * oLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-				(oLocal.z * oLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f) - 1;
+	// float A = 	(dLocal.x * dLocal.x) / (scale.x * scale.x *9.0f  + 0.0000001f) + 
+	// 			(dLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
+	// 			(dLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f);
+	// float B = 2 * ((oLocal.x * dLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
+	// 				(oLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
+	// 				(oLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f));
+	// float C = 	(oLocal.x * oLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
+	// 			(oLocal.y * oLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
+	// 			(oLocal.z * oLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f) - 1;
 
 
-	// float A = 	(dLocal.x * dLocal.x) / (scale.x   + 0.0000001f) + 
-	// 			(dLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
-	// 			(dLocal.z * dLocal.z) / (scale.z + 0.0000001f);
-	// float B = 2 * ((oLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
-	// 				(oLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
-	// 				(oLocal.z * dLocal.z) / (scale.z + 0.0000001f));
-	// float C = 	(oLocal.x * oLocal.x) / (scale.x + 0.0000001f) + 
-	// 			(oLocal.y * oLocal.y) / (scale.y + 0.0000001f) + 
-	// 			(oLocal.z * oLocal.z) / (scale.z + 0.0000001f) - 1;
+	float A = 	(dLocal.x * dLocal.x) / (scale.x   + 0.0000001f) + 
+				(dLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
+				(dLocal.z * dLocal.z) / (scale.z + 0.0000001f);
+	float B = 2 * ((oLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
+					(oLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
+					(oLocal.z * dLocal.z) / (scale.z + 0.0000001f));
+	float C = 	(oLocal.x * oLocal.x) / (scale.x + 0.0000001f) + 
+				(oLocal.y * oLocal.y) / (scale.y + 0.0000001f) + 
+				(oLocal.z * oLocal.z) / (scale.z + 0.0000001f) - 1;
 
 	float discriminant = B * B - 4 * A * C;
 
 	if (discriminant < 0)
 	{
-		intersection = make_float3(1.0f,1.0f,1.0f);
+		intersection = make_float3(0.0f,0.0f,0.0f);
 	}
 	else
 	{
@@ -389,7 +389,7 @@ __device__ float computeOpacityFromIntersection_f(int idx, const glm::vec3 unit_
 
 
 
-__device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int, const float* texture_opacity, float dL_dopacity, float* dL_dtext_opacity, const bool* clamped, glm::vec3* dL_dscales, const float sig_out, const int deg)
+__device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int, float dL_dopacity, float* dL_dtext_opacity, const bool* clamped, glm::vec3* dL_dscales, const float sig_out, const int deg)
 {
 
 
@@ -399,7 +399,7 @@ __device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int
 	
 	float dL_dRGB = dL_dopacity;
 
-	dL_dopacity *= sig_out * (1 - sig_out);
+	dL_dRGB *= sig_out * (1 - sig_out);
 
 	float x = unit_int.x;
 	float y = unit_int.y;
@@ -1362,25 +1362,18 @@ renderCUDA(
 			// unit_int.y = intersection.y*intersection.y* (1/(scale.y*(scale.y)*9.0f + 0.0000001f));
 			// unit_int.z = intersection.z*intersection.z* (1/(scale.z*(scale.z)*9.0f + 0.0000001f));
 
-			// unit_int.x = intersection.x* (1/(sqrt(scales[collected_id[j]].x) + 0.0000001f));
-			// unit_int.y = intersection.y* (1/(sqrt(scales[collected_id[j]].y) + 0.0000001f));
-			// unit_int.z = intersection.z* (1/(sqrt(scales[collected_id[j]].z) + 0.0000001f));
+			unit_int.x = intersection.x* (1/(sqrt(scales[collected_id[j]].x) + 0.0000001f));
+			unit_int.y = intersection.y* (1/(sqrt(scales[collected_id[j]].y) + 0.0000001f));
+			unit_int.z = intersection.z* (1/(sqrt(scales[collected_id[j]].z) + 0.0000001f));
 
-			unit_int.x = intersection.x* (1/(3.0f*scales[collected_id[j]].x + 0.0000001f));
-			unit_int.y = intersection.y* (1/(3.0f*scales[collected_id[j]].y + 0.0000001f));
-			unit_int.z = intersection.z* (1/(3.0f*scales[collected_id[j]].z + 0.0000001f));
+			// unit_int.x = intersection.x* (1/(3.0f*scales[collected_id[j]].x + 0.0000001f));
+			// unit_int.y = intersection.y* (1/(3.0f*scales[collected_id[j]].y + 0.0000001f));
+			// unit_int.z = intersection.z* (1/(3.0f*scales[collected_id[j]].z + 0.0000001f));
 
-			unit_int = unit_int / glm::length(unit_int);
+			if (glm::length(unit_int) != 0)
+				unit_int = unit_int / glm::length(unit_int);
 
-			
-			// float length_squared = unit_int.x * unit_int.x + unit_int.y * unit_int.y + unit_int.z * unit_int.z;
-			// if (length_squared >0.0f)
-			// {
-			// 	float length = sqrt(length_squared);
-			// 	unit_int.x /= length;
-			// 	unit_int.y /= length;
-			// 	unit_int.z /= length;
-			// }
+
 
 			con_o.w = computeOpacityFromIntersection_f(collected_id[j], unit_int, texture_opacity, D);
 			// if( length_squared == 0)
@@ -1491,7 +1484,7 @@ renderCUDA(
 			atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG);
 
 			// Update gradients w.r.t. opacity of the Gaussian
-			computeOpacityFromIntersection(global_id, unit_int, &texture_opacity[collected_id[j]], G * dL_dalpha, dL_dtext_opacity, clamped, dL_dscale, con_o.w, D);
+			computeOpacityFromIntersection(global_id, unit_int, G * dL_dalpha, dL_dtext_opacity, clamped, dL_dscale, con_o.w, D);
 			// atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
 
 		}

@@ -76,7 +76,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             gaussians.oneupSHdegree()
             # print("gaussians size:" ,gaussians.get_xyz.shape)
             # # print( "text: ", gaussians.get_texture)
-            print( "opa: ", gaussians.get_scaling)
+            print( "opa: ", gaussians.get_texture_opacity)
 
 
         #     # print(gaussians.xyz_scheduler_args)

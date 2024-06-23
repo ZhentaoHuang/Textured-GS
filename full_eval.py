@@ -13,8 +13,8 @@ import os
 from argparse import ArgumentParser
 
 mipnerf360_outdoor_scenes = ["bicycle", "flowers", "garden", "stump", "treehill"]
-# mipnerf360_indoor_scenes = ["room", "counter", "kitchen", "bonsai"]
-mipnerf360_indoor_scenes = []
+mipnerf360_indoor_scenes = ["room", "counter", "kitchen", "bonsai"]
+# mipnerf360_indoor_scenes = []
 tanks_and_temples_scenes = ["truck", "train"]
 deep_blending_scenes = ["drjohnson", "playroom"]
 
