@@ -70,7 +70,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     else:
         scales = pc.get_scaling
         rotations = pc.get_rotation
-
+    # print("Pipe.convert!!!", pipe.convert_SHs_python)
     # If precomputed colors are provided, use them. Otherwise, if it is desired to precompute colors
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
     shs = None
@@ -84,7 +84,8 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
         else:
             # shs = torch.ones_like(pc.get_features)
-            shs = pc.get_texture
+            # shs = pc.get_texture
+            shs = None
     else:
         colors_precomp = override_color
 

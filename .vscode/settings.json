@@ -73,5 +73,6 @@
         "__functional_base": "cpp",
         "__config": "cpp"
     },
-    "C_Cpp.errorSquiggles": "disabled"
+    "C_Cpp.errorSquiggles": "disabled",
+    "cmake.sourceDirectory": "/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture"
 }

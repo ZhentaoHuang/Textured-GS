@@ -351,7 +351,7 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.clamped,
 		D,
 		viewmatrix, projmatrix,
-		means3D,
+		(glm::vec3*)means3D,
 		(glm::vec3*)cam_pos,
 		(glm::vec4*)rotations,
 		(glm::vec3*) scales), debug)

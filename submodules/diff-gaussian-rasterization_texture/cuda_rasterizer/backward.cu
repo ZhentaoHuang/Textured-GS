@@ -350,35 +350,35 @@ __device__ float computeOpacityFromIntersection_f(int idx, const glm::vec3 unit_
 
 
 	float result = SH_C0 * sh[0];
-	if(deg > 0)
-	{
-		result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
-	}
+	// if(deg > 0)
+	// {
+	// 	result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+	// }
 
-	if (deg > 1)
-	{
-		float xx = x * x, yy = y * y, zz = z * z;
-		float xy = x * y, yz = y * z, xz = x * z;
-		result = result +
-			SH_C2[0] * xy * sh[4] +
-			SH_C2[1] * yz * sh[5] +
-			SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
-			SH_C2[3] * xz * sh[7] +
-			SH_C2[4] * (xx - yy) * sh[8];
+	// if (deg > 1)
+	// {
+	// 	float xx = x * x, yy = y * y, zz = z * z;
+	// 	float xy = x * y, yz = y * z, xz = x * z;
+	// 	result = result +
+	// 		SH_C2[0] * xy * sh[4] +
+	// 		SH_C2[1] * yz * sh[5] +
+	// 		SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
+	// 		SH_C2[3] * xz * sh[7] +
+	// 		SH_C2[4] * (xx - yy) * sh[8];
 		
-		if (deg > 2)
-		{
-			result = result +
-				SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
-				SH_C3[1] * xy * z * sh[10] +
-				SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
-				SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
-				SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
-				SH_C3[5] * z * (xx - yy) * sh[14] +
-				SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
+	// 	if (deg > 2)
+	// 	{
+	// 		result = result +
+	// 			SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
+	// 			SH_C3[1] * xy * z * sh[10] +
+	// 			SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
+	// 			SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
+	// 			SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
+	// 			SH_C3[5] * z * (xx - yy) * sh[14] +
+	// 			SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
 
-		}
-	}
+	// 	}
+	// }
 
 	result = 1.0f / (1.0f + glm::exp(-result));
 
@@ -423,51 +423,51 @@ __device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int
 
 	dL_dsh[0] = SH_C0 * dL_dRGB;
 
-	if (deg > 0)
-	{
-		float dRGBdsh1 = -SH_C1 * y;
-		float dRGBdsh2 = SH_C1 * z;
-		float dRGBdsh3 = -SH_C1 * x;
-		dL_dsh[1] = dRGBdsh1 * dL_dRGB;
-		dL_dsh[2] = dRGBdsh2 * dL_dRGB;
-		dL_dsh[3] = dRGBdsh3 * dL_dRGB;
+	// if (deg > 0)
+	// {
+	// 	float dRGBdsh1 = -SH_C1 * y;
+	// 	float dRGBdsh2 = SH_C1 * z;
+	// 	float dRGBdsh3 = -SH_C1 * x;
+	// 	dL_dsh[1] = dRGBdsh1 * dL_dRGB;
+	// 	dL_dsh[2] = dRGBdsh2 * dL_dRGB;
+	// 	dL_dsh[3] = dRGBdsh3 * dL_dRGB;
 
 
-		if (deg > 1)
-		{
-			float xx = x * x, yy = y * y, zz = z * z;
-			float xy = x * y, yz = y * z, xz = x * z;
+	// 	if (deg > 1)
+	// 	{
+	// 		float xx = x * x, yy = y * y, zz = z * z;
+	// 		float xy = x * y, yz = y * z, xz = x * z;
 
-			float dRGBdsh4 = SH_C2[0] * xy;
-			float dRGBdsh5 = SH_C2[1] * yz;
-			float dRGBdsh6 = SH_C2[2] * (2.f * zz - xx - yy);
-			float dRGBdsh7 = SH_C2[3] * xz;
-			float dRGBdsh8 = SH_C2[4] * (xx - yy);
-			dL_dsh[4] = dRGBdsh4 * dL_dRGB;
-			dL_dsh[5] = dRGBdsh5 * dL_dRGB;
-			dL_dsh[6] = dRGBdsh6 * dL_dRGB;
-			dL_dsh[7] = dRGBdsh7 * dL_dRGB;
-			dL_dsh[8] = dRGBdsh8 * dL_dRGB;
+	// 		float dRGBdsh4 = SH_C2[0] * xy;
+	// 		float dRGBdsh5 = SH_C2[1] * yz;
+	// 		float dRGBdsh6 = SH_C2[2] * (2.f * zz - xx - yy);
+	// 		float dRGBdsh7 = SH_C2[3] * xz;
+	// 		float dRGBdsh8 = SH_C2[4] * (xx - yy);
+	// 		dL_dsh[4] = dRGBdsh4 * dL_dRGB;
+	// 		dL_dsh[5] = dRGBdsh5 * dL_dRGB;
+	// 		dL_dsh[6] = dRGBdsh6 * dL_dRGB;
+	// 		dL_dsh[7] = dRGBdsh7 * dL_dRGB;
+	// 		dL_dsh[8] = dRGBdsh8 * dL_dRGB;
 
-			if (deg > 2)
-			{
-				float dRGBdsh9 = SH_C3[0] * y * (3.f * xx - yy);
-				float dRGBdsh10 = SH_C3[1] * xy * z;
-				float dRGBdsh11 = SH_C3[2] * y * (4.f * zz - xx - yy);
-				float dRGBdsh12 = SH_C3[3] * z * (2.f * zz - 3.f * xx - 3.f * yy);
-				float dRGBdsh13 = SH_C3[4] * x * (4.f * zz - xx - yy);
-				float dRGBdsh14 = SH_C3[5] * z * (xx - yy);
-				float dRGBdsh15 = SH_C3[6] * x * (xx - 3.f * yy);
-				dL_dsh[9] = dRGBdsh9 * dL_dRGB;
-				dL_dsh[10] = dRGBdsh10 * dL_dRGB;
-				dL_dsh[11] = dRGBdsh11 * dL_dRGB;
-				dL_dsh[12] = dRGBdsh12 * dL_dRGB;
-				dL_dsh[13] = dRGBdsh13 * dL_dRGB;
-				dL_dsh[14] = dRGBdsh14 * dL_dRGB;
-				dL_dsh[15] = dRGBdsh15 * dL_dRGB;
-			}
-		}
-	}
+	// 		if (deg > 2)
+	// 		{
+	// 			float dRGBdsh9 = SH_C3[0] * y * (3.f * xx - yy);
+	// 			float dRGBdsh10 = SH_C3[1] * xy * z;
+	// 			float dRGBdsh11 = SH_C3[2] * y * (4.f * zz - xx - yy);
+	// 			float dRGBdsh12 = SH_C3[3] * z * (2.f * zz - 3.f * xx - 3.f * yy);
+	// 			float dRGBdsh13 = SH_C3[4] * x * (4.f * zz - xx - yy);
+	// 			float dRGBdsh14 = SH_C3[5] * z * (xx - yy);
+	// 			float dRGBdsh15 = SH_C3[6] * x * (xx - 3.f * yy);
+	// 			dL_dsh[9] = dRGBdsh9 * dL_dRGB;
+	// 			dL_dsh[10] = dRGBdsh10 * dL_dRGB;
+	// 			dL_dsh[11] = dRGBdsh11 * dL_dRGB;
+	// 			dL_dsh[12] = dRGBdsh12 * dL_dRGB;
+	// 			dL_dsh[13] = dRGBdsh13 * dL_dRGB;
+	// 			dL_dsh[14] = dRGBdsh14 * dL_dRGB;
+	// 			dL_dsh[15] = dRGBdsh15 * dL_dRGB;
+	// 		}
+	// 	}
+	// }
 
 	for (int i = 0; i < (deg+1)*(deg+1); i++)
 	{
@@ -516,32 +516,32 @@ __device__ glm::vec3 computeColorFromD_f(int idx, const glm::vec3 unit_int, cons
 	glm::vec3 result = SH_C0 * sh[0];
 	if(deg > 0)
 	{
-		result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
+		// result = result - SH_C1 * y * sh[1] + SH_C1 * z * sh[2] - SH_C1 * x * sh[3];
 	}
 
 	if (deg > 1)
 	{
-		float xx = x * x, yy = y * y, zz = z * z;
-		float xy = x * y, yz = y * z, xz = x * z;
-		result = result +
-			SH_C2[0] * xy * sh[4] +
-			SH_C2[1] * yz * sh[5] +
-			SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
-			SH_C2[3] * xz * sh[7] +
-			SH_C2[4] * (xx - yy) * sh[8];
+		// float xx = x * x, yy = y * y, zz = z * z;
+		// float xy = x * y, yz = y * z, xz = x * z;
+		// result = result +
+		// 	SH_C2[0] * xy * sh[4] +
+		// 	SH_C2[1] * yz * sh[5] +
+		// 	SH_C2[2] * (2.0f * zz - xx - yy) * sh[6] +
+		// 	SH_C2[3] * xz * sh[7] +
+		// 	SH_C2[4] * (xx - yy) * sh[8];
 		
-		if (deg > 2)
-		{
-			result = result +
-				SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
-				SH_C3[1] * xy * z * sh[10] +
-				SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
-				SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
-				SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
-				SH_C3[5] * z * (xx - yy) * sh[14] +
-				SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
+		// if (deg > 2)
+		// {
+		// 	result = result +
+		// 		SH_C3[0] * y * (3.0f * xx - yy) * sh[9] +
+		// 		SH_C3[1] * xy * z * sh[10] +
+		// 		SH_C3[2] * y * (4.0f * zz - xx - yy) * sh[11] +
+		// 		SH_C3[3] * z * (2.0f * zz - 3.0f * xx - 3.0f * yy) * sh[12] +
+		// 		SH_C3[4] * x * (4.0f * zz - xx - yy) * sh[13] +
+		// 		SH_C3[5] * z * (xx - yy) * sh[14] +
+		// 		SH_C3[6] * x * (xx - 3.0f * yy) * sh[15];
 
-		}
+		// }
 	}
 	// result += 0.5f;
 
@@ -609,12 +609,12 @@ __device__ void computeColorFromD(int idx, const glm::vec3 unit_int, const float
 
 	if (deg > 0)
 	{
-		float dRGBdsh1 = -SH_C1 * y;
-		float dRGBdsh2 = SH_C1 * z;
-		float dRGBdsh3 = -SH_C1 * x;
-		dL_dsh[1] = dRGBdsh1 * dL_dRGB;
-		dL_dsh[2] = dRGBdsh2 * dL_dRGB;
-		dL_dsh[3] = dRGBdsh3 * dL_dRGB;
+		// float dRGBdsh1 = -SH_C1 * y;
+		// float dRGBdsh2 = SH_C1 * z;
+		// float dRGBdsh3 = -SH_C1 * x;
+		// dL_dsh[1] = dRGBdsh1 * dL_dRGB;
+		// dL_dsh[2] = dRGBdsh2 * dL_dRGB;
+		// dL_dsh[3] = dRGBdsh3 * dL_dRGB;
 
 		// dRGBdx = -SH_C1 * sh[3];
 		// dRGBdy = -SH_C1 * sh[1];
@@ -622,66 +622,41 @@ __device__ void computeColorFromD(int idx, const glm::vec3 unit_int, const float
 
 		if (deg > 1)
 		{
-			float xx = x * x, yy = y * y, zz = z * z;
-			float xy = x * y, yz = y * z, xz = x * z;
+			// float xx = x * x, yy = y * y, zz = z * z;
+			// float xy = x * y, yz = y * z, xz = x * z;
 
-			float dRGBdsh4 = SH_C2[0] * xy;
-			float dRGBdsh5 = SH_C2[1] * yz;
-			float dRGBdsh6 = SH_C2[2] * (2.f * zz - xx - yy);
-			float dRGBdsh7 = SH_C2[3] * xz;
-			float dRGBdsh8 = SH_C2[4] * (xx - yy);
-			dL_dsh[4] = dRGBdsh4 * dL_dRGB;
-			dL_dsh[5] = dRGBdsh5 * dL_dRGB;
-			dL_dsh[6] = dRGBdsh6 * dL_dRGB;
-			dL_dsh[7] = dRGBdsh7 * dL_dRGB;
-			dL_dsh[8] = dRGBdsh8 * dL_dRGB;
+			// float dRGBdsh4 = SH_C2[0] * xy;
+			// float dRGBdsh5 = SH_C2[1] * yz;
+			// float dRGBdsh6 = SH_C2[2] * (2.f * zz - xx - yy);
+			// float dRGBdsh7 = SH_C2[3] * xz;
+			// float dRGBdsh8 = SH_C2[4] * (xx - yy);
+			// dL_dsh[4] = dRGBdsh4 * dL_dRGB;
+			// dL_dsh[5] = dRGBdsh5 * dL_dRGB;
+			// dL_dsh[6] = dRGBdsh6 * dL_dRGB;
+			// dL_dsh[7] = dRGBdsh7 * dL_dRGB;
+			// dL_dsh[8] = dRGBdsh8 * dL_dRGB;
 
 			// dRGBdx += SH_C2[0] * y * sh[4] + SH_C2[2] * 2.f * -x * sh[6] + SH_C2[3] * z * sh[7] + SH_C2[4] * 2.f * x * sh[8];
 			// dRGBdy += SH_C2[0] * x * sh[4] + SH_C2[1] * z * sh[5] + SH_C2[2] * 2.f * -y * sh[6] + SH_C2[4] * 2.f * -y * sh[8];
 			// dRGBdz += SH_C2[1] * y * sh[5] + SH_C2[2] * 2.f * 2.f * z * sh[6] + SH_C2[3] * x * sh[7];
 
-			if (deg > 2)
-			{
-				float dRGBdsh9 = SH_C3[0] * y * (3.f * xx - yy);
-				float dRGBdsh10 = SH_C3[1] * xy * z;
-				float dRGBdsh11 = SH_C3[2] * y * (4.f * zz - xx - yy);
-				float dRGBdsh12 = SH_C3[3] * z * (2.f * zz - 3.f * xx - 3.f * yy);
-				float dRGBdsh13 = SH_C3[4] * x * (4.f * zz - xx - yy);
-				float dRGBdsh14 = SH_C3[5] * z * (xx - yy);
-				float dRGBdsh15 = SH_C3[6] * x * (xx - 3.f * yy);
-				dL_dsh[9] = dRGBdsh9 * dL_dRGB;
-				dL_dsh[10] = dRGBdsh10 * dL_dRGB;
-				dL_dsh[11] = dRGBdsh11 * dL_dRGB;
-				dL_dsh[12] = dRGBdsh12 * dL_dRGB;
-				dL_dsh[13] = dRGBdsh13 * dL_dRGB;
-				dL_dsh[14] = dRGBdsh14 * dL_dRGB;
-				dL_dsh[15] = dRGBdsh15 * dL_dRGB;
-
-				// dRGBdx += (
-				// 	SH_C3[0] * sh[9] * 3.f * 2.f * xy +
-				// 	SH_C3[1] * sh[10] * yz +
-				// 	SH_C3[2] * sh[11] * -2.f * xy +
-				// 	SH_C3[3] * sh[12] * -3.f * 2.f * xz +
-				// 	SH_C3[4] * sh[13] * (-3.f * xx + 4.f * zz - yy) +
-				// 	SH_C3[5] * sh[14] * 2.f * xz +
-				// 	SH_C3[6] * sh[15] * 3.f * (xx - yy));
-
-				// dRGBdy += (
-				// 	SH_C3[0] * sh[9] * 3.f * (xx - yy) +
-				// 	SH_C3[1] * sh[10] * xz +
-				// 	SH_C3[2] * sh[11] * (-3.f * yy + 4.f * zz - xx) +
-				// 	SH_C3[3] * sh[12] * -3.f * 2.f * yz +
-				// 	SH_C3[4] * sh[13] * -2.f * xy +
-				// 	SH_C3[5] * sh[14] * -2.f * yz +
-				// 	SH_C3[6] * sh[15] * -3.f * 2.f * xy);
-
-				// dRGBdz += (
-				// 	SH_C3[1] * sh[10] * xy +
-				// 	SH_C3[2] * sh[11] * 4.f * 2.f * yz +
-				// 	SH_C3[3] * sh[12] * 3.f * (2.f * zz - xx - yy) +
-				// 	SH_C3[4] * sh[13] * 4.f * 2.f * xz +
-				// 	SH_C3[5] * sh[14] * (xx - yy));
-			}
+			// if (deg > 2)
+			// {
+			// 	float dRGBdsh9 = SH_C3[0] * y * (3.f * xx - yy);
+			// 	float dRGBdsh10 = SH_C3[1] * xy * z;
+			// 	float dRGBdsh11 = SH_C3[2] * y * (4.f * zz - xx - yy);
+			// 	float dRGBdsh12 = SH_C3[3] * z * (2.f * zz - 3.f * xx - 3.f * yy);
+			// 	float dRGBdsh13 = SH_C3[4] * x * (4.f * zz - xx - yy);
+			// 	float dRGBdsh14 = SH_C3[5] * z * (xx - yy);
+			// 	float dRGBdsh15 = SH_C3[6] * x * (xx - 3.f * yy);
+			// 	dL_dsh[9] = dRGBdsh9 * dL_dRGB;
+			// 	dL_dsh[10] = dRGBdsh10 * dL_dRGB;
+			// 	dL_dsh[11] = dRGBdsh11 * dL_dRGB;
+			// 	dL_dsh[12] = dRGBdsh12 * dL_dRGB;
+			// 	dL_dsh[13] = dRGBdsh13 * dL_dRGB;
+			// 	dL_dsh[14] = dRGBdsh14 * dL_dRGB;
+			// 	dL_dsh[15] = dRGBdsh15 * dL_dRGB;
+			// }
 		}
 	}
 
@@ -1171,9 +1146,9 @@ renderCUDA(
 	__shared__ int collected_id[BLOCK_SIZE];
 	__shared__ float2 collected_xy[BLOCK_SIZE];
 	__shared__ float4 collected_conic_opacity[BLOCK_SIZE];
-	__shared__ float collected_colors[C * BLOCK_SIZE];
+	// __shared__ float collected_colors[C * BLOCK_SIZE];
 	// __shared__ float collected_texture_opa[16 * BLOCK_SIZE];
-	__shared__ float collected_scales[3 * BLOCK_SIZE];
+	// __shared__ float collected_scales[3 * BLOCK_SIZE];
 
 	// In the forward, we stored the final value for T, the
 	// product of all (1 - alpha) factors. 
