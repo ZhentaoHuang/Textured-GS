@@ -29,8 +29,6 @@ def rasterize_gaussians_texture(
     cov3Ds_precomp,
     texture,
     texture_opacity,
-    pixel_count,
-    sig_out,
     raster_settings,
 ):
     return _RasterizeGaussiansTexture.apply(
@@ -44,8 +42,6 @@ def rasterize_gaussians_texture(
         cov3Ds_precomp,
         texture,
         texture_opacity,
-        pixel_count,
-        sig_out,
         raster_settings,
     )
 
@@ -63,8 +59,6 @@ class _RasterizeGaussiansTexture(torch.autograd.Function):
         cov3Ds_precomp,
         texture,
         texture_opacity,
-        pixel_count,
-        sig_out,
         raster_settings,
     ):
 
@@ -80,10 +74,9 @@ class _RasterizeGaussiansTexture(torch.autograd.Function):
             cov3Ds_precomp,
             texture,
             texture_opacity,
-            pixel_count,
-            sig_out,
             raster_settings.viewmatrix,
             raster_settings.projmatrix,
+            raster_settings.projmatrix_inv,
             raster_settings.tanfovx,
             raster_settings.tanfovy,
             raster_settings.image_height,
@@ -110,7 +103,7 @@ class _RasterizeGaussiansTexture(torch.autograd.Function):
         # Keep relevant tensors for backward
         ctx.raster_settings = raster_settings
         ctx.num_rendered = num_rendered
-        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, texture_opacity, pixel_count, sig_out)
+        ctx.save_for_backward(colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, texture_opacity)
         return color, radii
 
     @staticmethod
@@ -119,15 +112,15 @@ class _RasterizeGaussiansTexture(torch.autograd.Function):
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
-        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, texture_opacity, pixel_count, sig_out = ctx.saved_tensors
+        colors_precomp, means3D, scales, rotations, cov3Ds_precomp, radii, sh, geomBuffer, binningBuffer, imgBuffer, texture, texture_opacity= ctx.saved_tensors
         # print(pixel_count)
-        pixel_count[pixel_count == 0] = 1.0
+        # pixel_count[pixel_count == 0] = 1.0
         
         
         # print("shape",sig_out.shape, pixel_count.shape)
-        pixel_count = pixel_count.unsqueeze(1)
-        sig_out = sig_out / pixel_count
-        sig_out = sig_out * 0
+        # pixel_count = pixel_count.unsqueeze(1)
+        # sig_out = sig_out / pixel_count
+        # sig_out = sig_out * 0
         # sig_out.zero_()
         # print("sig_out: ",sig_out, "pix: ",pixel_count)
         # Restructure args as C++ method expects them
@@ -141,7 +134,7 @@ class _RasterizeGaussiansTexture(torch.autograd.Function):
                 cov3Ds_precomp, 
                 texture,
                 texture_opacity,
-                sig_out,
+                # sig_out,
                 raster_settings.viewmatrix, 
                 raster_settings.projmatrix, 
                 raster_settings.tanfovx, 
@@ -211,6 +204,7 @@ class GaussianRasterizationSettings(NamedTuple):
     scale_modifier : float
     viewmatrix : torch.Tensor
     projmatrix : torch.Tensor
+    projmatrix_inv : torch.Tensor
     sh_degree : int
     campos : torch.Tensor
     prefiltered : bool
@@ -232,7 +226,7 @@ class GaussianRasterizer(nn.Module):
             
         return visible
 
-    def forward(self, means3D, means2D, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None, texture_opacity = None, pixel_count = None, sig_out=None):
+    def forward(self, means3D, means2D, shs = None, colors_precomp = None, scales = None, rotations = None, cov3D_precomp = None, texture = None, texture_opacity = None):
         
         raster_settings = self.raster_settings
 
@@ -266,8 +260,6 @@ class GaussianRasterizer(nn.Module):
             cov3D_precomp,
             texture,
             texture_opacity,
-            pixel_count,
-            sig_out,
             raster_settings
         )
 

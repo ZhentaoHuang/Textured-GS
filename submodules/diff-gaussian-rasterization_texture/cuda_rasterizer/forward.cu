@@ -20,6 +20,49 @@
 namespace cg = cooperative_groups;
 
 
+
+
+__device__ float3 getRayVec(float2 pix, int W, int H, const float* viewMatrix, const float* invProj, glm::vec3 campos)
+{
+
+	// Convert pixel coordinates to normalized device coordinates (NDC)
+    float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
+    float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
+
+    // Define point in clip coordinates (z value chosen for a point in front of the camera)
+    float p_hom_x_r = ndcX * 1.0000001f;
+    float p_hom_y_r = ndcY * 1.0000001f;
+    float p_hom_z_r = (100.0f + 0.01f - 1.0f) / (100.0f - 0.01f);
+    float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
+
+    // // Transform to camera space using the inverse projection matrix
+    // float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
+    // float invW = 1.0f / camCoords.w;  // Compute inverse of w once
+    // camCoords = make_float4(camCoords.x * invW, camCoords.y * invW, camCoords.z * invW, 1.0f);
+
+    // // Compute the direction vector from the camera position to the point in camera space
+    // float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
+
+    // // Normalize the direction vector
+	// float invNorm = 1.0f / sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
+    // float3 rayDirection = make_float3(realVector.x * invNorm, realVector.y * invNorm, realVector.z * invNorm);
+
+	// Transform to camera space using the inverse projection matrix
+    float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
+    camCoords = make_float4(camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1.0f);
+
+    // Compute the direction vector from the camera position to the point in camera space
+    float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
+
+    // Normalize the direction vector
+	float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
+    float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
+
+
+    return rayDirection;
+}
+
+
 __device__ void transpose(float *m) {
     float tmp;
     for (int i = 0; i < 4; ++i) {
@@ -100,156 +143,71 @@ __device__ void invertAndTransposeMatrix(const float *mat, float *invMat) {
 }
 
 
-__device__ float3 getRayVec(float2 pix, int W, int H, const float* viewMatrix, const float* projMatrix, glm::vec3 campos)
-{
-    // // Convert pixel coordinates to normalized device coordinates (NDC)
-    // float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
-    // float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
+// __device__ float3 getRayVec(float2 pix, int W, int H, const float* viewMatrix, const float* projMatrix, glm::vec3 campos)
+// {
+//     // // Convert pixel coordinates to normalized device coordinates (NDC)
+//     // float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
+//     // float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
 
 
-	// 	//inverse process of 'Transform point by projecting'
-	// float p_hom_x_r = ndcX*(1.0000001);
-	// float p_hom_y_r = ndcY*(1.0000001);
-	// // self.zfar = 100.0, self.znear = 0.01
-	// float p_hom_z_r = (100+0.01-1)/(100-0.01);
-	// float p_hom_w_r = 1;
+// 	// 	//inverse process of 'Transform point by projecting'
+// 	// float p_hom_x_r = ndcX*(1.0000001);
+// 	// float p_hom_y_r = ndcY*(1.0000001);
+// 	// // self.zfar = 100.0, self.znear = 0.01
+// 	// float p_hom_z_r = (100+0.01-1)/(100-0.01);
+// 	// float p_hom_w_r = 1;
 
-    // // Define point in clip coordinates as float4 for handling perspective division
-    // // float4 clipCoords = make_float4(ndcX, ndcY, -0.01f, 1.0f);  // w = 1.0f for perspective division
-	// float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
-	// // float real_viewMatrix[16];
+//     // // Define point in clip coordinates as float4 for handling perspective division
+//     // // float4 clipCoords = make_float4(ndcX, ndcY, -0.01f, 1.0f);  // w = 1.0f for perspective division
+// 	// float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
+// 	// // float real_viewMatrix[16];
 
-    // // Inverse matrices
-    // float invProj[16];
-    // invertAndTransposeMatrix(projMatrix, invProj);
-
-
-    // // Transform to camera space using the inverse projection matrix
-	// float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
-	// camCoords = {camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1};
-	// float3 realVector = {camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z};
-	// float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
-	// // float4 worldCoords = transformFloat4_4x4(camCoords, invView);
-
-	// // Normalize to ensure it's a direction vector
-    // float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
-    // // float norm = sqrt(rayDirection.x * rayDirection.x + rayDirection.y * rayDirection.y + rayDirection.z * rayDirection.z);
-    // // rayDirection = make_float3(rayDirection.x / norm, rayDirection.y / norm, rayDirection.z / norm);
-	// // Minus campos
-
-    // return rayDirection;
-	    // Convert pixel coordinates to normalized device coordinates (NDC)
-    float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
-    float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
-
-    // Define point in clip coordinates (z value chosen for a point in front of the camera)
-    float p_hom_x_r = ndcX * 1.0000001f;
-    float p_hom_y_r = ndcY * 1.0000001f;
-    float p_hom_z_r = (100.0f + 0.01f - 1.0f) / (100.0f - 0.01f);
-    float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
-
-    // Inverse projection matrix
-    float invProj[16];
-    invertAndTransposeMatrix(projMatrix, invProj);
-
-    // Transform to camera space using the inverse projection matrix
-    float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
-    camCoords = make_float4(camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1.0f);
-
-    // Compute the direction vector from the camera position to the point in camera space
-    float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
-
-    // Normalize the direction vector
-	float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
-    float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
-
-    return rayDirection;
-}
+//     // // Inverse matrices
+//     // float invProj[16];
+//     // invertAndTransposeMatrix(projMatrix, invProj);
 
 
+//     // // Transform to camera space using the inverse projection matrix
+// 	// float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
+// 	// camCoords = {camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1};
+// 	// float3 realVector = {camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z};
+// 	// float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
+// 	// // float4 worldCoords = transformFloat4_4x4(camCoords, invView);
 
-__device__ float3 mat3x3_mul_vec3(float R[9], float3 v) {
-    return make_float3(
-        R[0] * v.x + R[3] * v.y + R[6] * v.z,
-        R[1] * v.x + R[4] * v.y + R[7] * v.z,
-        R[2] * v.x + R[5] * v.y + R[8] * v.z
-    );
-}
+// 	// // Normalize to ensure it's a direction vector
+//     // float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
+//     // // float norm = sqrt(rayDirection.x * rayDirection.x + rayDirection.y * rayDirection.y + rayDirection.z * rayDirection.z);
+//     // // rayDirection = make_float3(rayDirection.x / norm, rayDirection.y / norm, rayDirection.z / norm);
+// 	// // Minus campos
 
+//     // return rayDirection;
+// 	    // Convert pixel coordinates to normalized device coordinates (NDC)
+//     float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
+//     float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
 
-__device__ float3 getIntersection3D(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos, glm::vec3 scale) {
+//     // Define point in clip coordinates (z value chosen for a point in front of the camera)
+//     float p_hom_x_r = ndcX * 1.0000001f;
+//     float p_hom_y_r = ndcY * 1.0000001f;
+//     float p_hom_z_r = (100.0f + 0.01f - 1.0f) / (100.0f - 0.01f);
+//     float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
 
-	float3 intersection;
+//     // Inverse projection matrix
+//     float invProj[16];
+//     invertAndTransposeMatrix(projMatrix, invProj);
 
-	float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
-	float r = rot.x;
-    float x = rot.y;
-    float y = rot.z;
-    float z = rot.w;
-    float R[9] = {
-        1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
-        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
-        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
-    };
+//     // Transform to camera space using the inverse projection matrix
+//     float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
+//     camCoords = make_float4(camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1.0f);
 
-	// Assuming R transforms from local to world, use transpose for world to local
-    // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
-    float3 oLocal = transformR_T(o_t, R); // new center in local space
-    float3 dLocal = transformR_T(ray, R); // new direction in local space
+//     // Compute the direction vector from the camera position to the point in camera space
+//     float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
 
-	// float A = 	(dLocal.x * dLocal.x) / (scale.x * scale.x *9.0f  + 0.0000001f) + 
-	// 			(dLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-	// 			(dLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f);
-	// float B = 2 * ((oLocal.x * dLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
-	// 				(oLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-	// 				(oLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f));
-	// float C = 	(oLocal.x * oLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
-	// 			(oLocal.y * oLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-	// 			(oLocal.z * oLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f) - 1;
+//     // Normalize the direction vector
+// 	float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
+//     float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
 
-	float A = 	(dLocal.x * dLocal.x) / (scale.x   + 0.0000001f) + 
-				(dLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
-				(dLocal.z * dLocal.z) / (scale.z + 0.0000001f);
-	float B = 2 * ((oLocal.x * dLocal.x) / (scale.x + 0.0000001f) + 
-					(oLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
-					(oLocal.z * dLocal.z) / (scale.z + 0.0000001f));
-	float C = 	(oLocal.x * oLocal.x) / (scale.x + 0.0000001f) + 
-				(oLocal.y * oLocal.y) / (scale.y + 0.0000001f) + 
-				(oLocal.z * oLocal.z) / (scale.z + 0.0000001f) - 1;
-
-	float discriminant = B * B - 4 * A * C;
-
-	if (discriminant < 0 )
-	{
-		intersection = make_float3(0.0f,0.0f,0.0f);
-	}
-	else
-	{
-		double sqrt_discriminant = std::sqrt(discriminant);
-		float t0 = (-B - sqrt_discriminant) / (2 * A);
-		float t1 = (-B + sqrt_discriminant) / (2 * A);
-
-		float t = 0;
-		if (t0 < t1)
-		{
-			t = t0;
-		}
-		else
-		{
-			t = t1;
-		}
-
-		intersection = make_float3(oLocal.x + t * dLocal.x,
-                                      oLocal.y + t * dLocal.y,
-                                      oLocal.z + t * dLocal.z);
-	}
-
-	
-
-
-
-	return intersection;
-}
+//     return rayDirection;
+// }
 
 
 
@@ -272,16 +230,7 @@ __device__ glm::vec3 getIntersection3D_1(float3 ray, const glm::vec3 mean, const
     // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
     float3 oLocal = transformR_T(o_t, R); // new center in local space
     float3 dLocal = transformR_T(ray, R); // new direction in local space
-
-	// float A = 	(dLocal.x * dLocal.x) / (scale.x * scale.x *9.0f  + 0.0000001f) + 
-	// 			(dLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-	// 			(dLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f);
-	// float B = 2 * ((oLocal.x * dLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
-	// 				(oLocal.y * dLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-	// 				(oLocal.z * dLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f));
-	// float C = 	(oLocal.x * oLocal.x) / (scale.x * scale.x *9.0f+ 0.0000001f) + 
-	// 			(oLocal.y * oLocal.y) / (scale.y * scale.y *9.0f+ 0.0000001f) + 
-	// 			(oLocal.z * oLocal.z) / (scale.z * scale.z *9.0f+ 0.0000001f) - 1;
+	// glm::vec3 scale = s + 0.0000001f;
 
 	float A = 	(dLocal.x * dLocal.x) / (scale.x   + 0.0000001f) + 
 				(dLocal.y * dLocal.y) / (scale.y + 0.0000001f) + 
@@ -293,7 +242,7 @@ __device__ glm::vec3 getIntersection3D_1(float3 ray, const glm::vec3 mean, const
 				(oLocal.y * oLocal.y) / (scale.y + 0.0000001f) + 
 				(oLocal.z * oLocal.z) / (scale.z + 0.0000001f) - 1;
 
-	float discriminant = B * B - 4 * A * C;
+	float discriminant = B * B - 4.f * A * C;
 
 	if (discriminant < 0)
 	{
@@ -301,19 +250,19 @@ __device__ glm::vec3 getIntersection3D_1(float3 ray, const glm::vec3 mean, const
 	}
 	else
 	{
-		double sqrt_discriminant = std::sqrt(discriminant);
+		float sqrt_discriminant = sqrtf(discriminant);
 		float t0 = (-B - sqrt_discriminant) / (2 * A);
 		float t1 = (-B + sqrt_discriminant) / (2 * A);
 
-		float t = 0;
-		if (t0 < t1)
-		{
-			t = t0;
-		}
-		else
-		{
-			t = t1;
-		}
+		float t = fminf(t0,t1);
+		// if (t0 < t1)
+		// {
+		// 	t = t0;
+		// }
+		// else
+		// {
+		// 	t = t1;
+		// }
 
 		intersection = glm::vec3(oLocal.x + t * dLocal.x,
                                       oLocal.y + t * dLocal.y,
@@ -327,116 +276,9 @@ __device__ glm::vec3 getIntersection3D_1(float3 ray, const glm::vec3 mean, const
 		// unit_int.z = intersection.z* (1/(sqrt(collected_scale[j].z) + 0.0000001f));
 	}
 
-	
-
-
-
 	return intersection;
 }
 
-
-__device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos) {
-    float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
-    float r = rot.x;
-    float x = rot.y;
-    float y = rot.z;
-    float z = rot.w;
-    float R[9] = {
-        1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
-        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
-        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
-    };
-
-    // Assuming R transforms from local to world, use transpose for world to local
-    // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
-    float3 oLocal = transformR_T(o_t, R); // new center in local space
-    float3 dLocal = transformR_T(ray, R); // new direction in local space
-    float zMean = 0;
-
-    if (fabs(dLocal.z) < 1e-6) { // Check if the ray is parallel to the plane
-        if (fabs(oLocal.z - zMean) < 1e-6) {
-            return oLocal; // Ray lies in the plane
-        } else {
-            return make_float3(0, 0, 0); // No intersection
-        }
-    }
-    float t = (zMean - oLocal.z) / dLocal.z; // Solve for t
-
-    float3 intersection = make_float3(oLocal.x + t * dLocal.x,
-                                      oLocal.y + t * dLocal.y,
-                                      oLocal.z + t * dLocal.z);
-
-    return intersection;
-}
-
-
-
-
-	// sh[0].x = 0.79;
-	// sh[0].y = 0.44;
-	// sh[0].z = 0.54;
-
-	// sh[1].x = 0.39;
-	// sh[1].y = 0.35;
-	// sh[1].z = 0.60;
-
-	// sh[2].x = -0.34;
-	// sh[2].y = -0.18;
-	// sh[2].z = -0.27;
-
-	// sh[3].x = -0.29;
-	// sh[3].y = -0.60;
-	// sh[3].z = 0.1;
-
-	// sh[4].x = -0.11;
-	// sh[4].y = -0.05;
-	// sh[4].z = -0.12;
-
-	// sh[5].x = -0.26;
-	// sh[5].y = -0.22;
-	// sh[5].z = -0.47;
-
-	// sh[6].x = -0.16;
-	// sh[6].y = -0.09;
-	// sh[6].z = -0.15;
-
-	// sh[7].x = 0.56;
-	// sh[7].y = 0.21;
-	// sh[7].z = 0.14;
-
-	// sh[8].x = 0.21;
-	// sh[8].y = -0.05;
-	// sh[8].z = -0.30;
-
-	// sh[9].x = 0.21;
-	// sh[9].y = -0.01;
-	// sh[9].z = +0.50;
-
-	// sh[10].x = 0.93;
-	// sh[10].y = -0.05;
-	// sh[10].z = -0.30;
-
-	// sh[11].x = +0.21;
-	// sh[11].y = -0.05;
-	// sh[11].z = -0.30;
-
-	// sh[12].x = -0.21;
-	// sh[12].y = -0.05;
-	// sh[12].z = -0.30;
-
-
-	// sh[13].x = 0.21;
-	// sh[13].y = -0.05;
-	// sh[13].z = +0.30;
-
-	// sh[14].x = 0.21;
-	// sh[14].y = -0.55;
-	// sh[14].z = -0.30;
-
-	// sh[15].x = 0.71;
-	// sh[15].y = -0.45;
-	// sh[15].z = +0.10;
-	
 
 
 
@@ -444,17 +286,7 @@ __device__ float3 getIntersection(float3 ray, const float3 mean, const glm::vec4
 __device__ float computeOpacityFromIntersection(int idx, const glm::vec3 unit_int, const float* texture_opacity, const int deg)
 {
 
-	// float x = intersection.x*intersection.x* (1/(9.0f*((scale.x))*scale.x + 0.0000001f));
-	// float y = intersection.y*intersection.y* (1/(9.0f*((scale.y))*scale.y + 0.0000001f));
-	// float z = intersection.z*intersection.z* (1/(9.0f*((scale.z))*scale.z + 0.0000001f));
 
-	// float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
-	// float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
-	// float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
-
-	// float x = intersection.x* (1/(4.0f*scale.x + 0.0000001f));
-	// float y = intersection.y* (1/(4.0f*scale.y + 0.0000001f));
-	// float z = intersection.z* (1/(4.0f*scale.z + 0.0000001f));
 	float x = unit_int.x;
 	float y = unit_int.y;
 	float z = unit_int.z;
@@ -883,7 +715,7 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	const glm::vec4* rotations,
 	// const float* opacities,
 	const float* shs,
-	bool* clamped,
+	// bool* clamped,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
 	const float* viewmatrix,
@@ -1006,21 +838,22 @@ renderCUDA(
 	const float* __restrict__ texture,
 	const float* __restrict__ texture_opacity,
 	float* rgb,
-	float* __restrict__ pixel_count,
-	float* __restrict__ sig_out,
+	// float* __restrict__ pixel_count,
+	// float* __restrict__ sig_out,
 	const float4* __restrict__ conic_opacity,
 	float* __restrict__ final_T,
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
-	bool* clamped,
+	// bool* clamped,
 	const int degree,
 	const float* viewmatrix,
 	const float* projmatrix,
-	const glm::vec3* means3D,
-	const glm::vec3* cam_pos,
-	const glm::vec4* rotations,
-	const glm::vec3* scales
+	const float* projmatrix_inv,
+	const __restrict__  glm::vec3* means3D,
+	const __restrict__  glm::vec3* cam_pos,
+	const __restrict__  glm::vec4* rotations,
+	const __restrict__  glm::vec3* scales
 	)
 {
 	// Identify current tile and associated min/max pixel range.
@@ -1059,7 +892,20 @@ renderCUDA(
 
 
 
-	float3 ray = getRayVec(pixf, W, H, viewmatrix, projmatrix, *cam_pos);
+	float3 ray = getRayVec(pixf, W, H, viewmatrix, projmatrix_inv, *cam_pos);
+	
+	// float invProj[16];
+    // invertAndTransposeMatrix(projmatrix, invProj);
+	// printf("invProj: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\nprojmatrix_inv: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
+    //    invProj[0], invProj[1], invProj[2], invProj[3],
+    //    invProj[4], invProj[5], invProj[6], invProj[7],
+    //    invProj[8], invProj[9], invProj[10], invProj[11],
+    //    invProj[12], invProj[13], invProj[14], invProj[15],
+    //    projmatrix_inv[0], projmatrix_inv[1], projmatrix_inv[2], projmatrix_inv[3],
+    //    projmatrix_inv[4], projmatrix_inv[5], projmatrix_inv[6], projmatrix_inv[7],
+    //    projmatrix_inv[8], projmatrix_inv[9], projmatrix_inv[10], projmatrix_inv[11],
+    //    projmatrix_inv[12], projmatrix_inv[13], projmatrix_inv[14], projmatrix_inv[15]);
+
 
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
@@ -1210,17 +1056,18 @@ void FORWARD::render(
 	const float* texture,
 	const float* texture_opacity,
 	float* rgb,
-	float* pixel_count,
-	float* sig_out,
+	// float* pixel_count,
+	// float* sig_out,
 	const float4* conic_opacity,
 	float* final_T,
 	uint32_t* n_contrib,
 	const float* bg_color,
 	float* out_color,
-	bool* clamped,
+	// bool* clamped,
 	const int D,
 	const float* viewmatrix,
 	const float* projmatrix,
+	const float* projmatrix_inv,
 	const glm::vec3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
@@ -1239,17 +1086,18 @@ void FORWARD::render(
 		texture,
 		texture_opacity,
 		rgb,
-		pixel_count,
-		sig_out,
+		// pixel_count,
+		// sig_out,
 		conic_opacity,
 		final_T,
 		n_contrib,
 		bg_color,
 		out_color,
-		clamped,
+		// clamped,
 		D,
 		viewmatrix,
 		projmatrix,
+		projmatrix_inv,
 		means3D,
 		cam_pos,
 		rotations,
@@ -1268,7 +1116,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const glm::vec4* rotations,
 	// const float* opacities,
 	const float* shs,
-	bool* clamped,
+	// bool* clamped,
 	const float* cov3D_precomp,
 	const float* colors_precomp,
 	const float* viewmatrix,
@@ -1295,7 +1143,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		rotations,
 		// opacities,
 		shs,
-		clamped,
+		// clamped,
 		cov3D_precomp,
 		colors_precomp,
 		viewmatrix, 

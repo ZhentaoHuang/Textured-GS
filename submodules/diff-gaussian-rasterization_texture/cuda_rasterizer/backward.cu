@@ -389,7 +389,7 @@ __device__ float computeOpacityFromIntersection_f(int idx, const glm::vec3 unit_
 
 
 
-__device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int, float dL_dopacity, float* dL_dtext_opacity, const bool* clamped, glm::vec3* dL_dscales, const float sig_out, const int deg)
+__device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int, float dL_dopacity, float* dL_dtext_opacity, glm::vec3* dL_dscales, const float sig_out, const int deg)
 {
 
 
@@ -573,7 +573,7 @@ __device__ glm::vec3 computeColorFromD_f(int idx, const glm::vec3 unit_int, cons
 
 
 
-__device__ void computeColorFromD(int idx, const glm::vec3 unit_int, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, const bool* clamped, glm::vec3* dL_dscales, const glm::vec3 sig_out, const int deg)
+__device__ void computeColorFromD(int idx, const glm::vec3 unit_int, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, glm::vec3* dL_dscales, const glm::vec3 sig_out, const int deg)
 {
 
 
@@ -1046,7 +1046,7 @@ __global__ void preprocessCUDA(
 	const float3* means,
 	const int* radii,
 	const float* shs,
-	const bool* clamped,
+	// const bool* clamped,
 	const glm::vec3* scales,
 	const glm::vec4* rotations,
 	const float scale_modifier,
@@ -1105,7 +1105,7 @@ renderCUDA(
 	const float* __restrict__ colors,
 	const float* __restrict__ texture,
 	const float* __restrict__ texture_opacity,
-	const float* __restrict__ sig_out,
+	// const float* __restrict__ sig_out,
 	const float* __restrict__ final_Ts,
 	const uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ dL_dpixels,
@@ -1115,7 +1115,7 @@ renderCUDA(
 	float* __restrict__ dL_dcolors,
 	float* __restrict__ dL_dtext,
 	float* __restrict__ dL_dtext_opacity,
-	const bool* clamped,
+	// const bool* clamped,
 	const int D,
 	const float* viewmatrix,
 	const float* projmatrix,
@@ -1426,7 +1426,7 @@ renderCUDA(
 			// float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
 			
 			// float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
-			computeColorFromD(global_id, unit_int, texture, tmp, dL_dtext, clamped, dL_dscale, rgb_out, D);
+			computeColorFromD(global_id, unit_int, texture, tmp, dL_dtext, dL_dscale, rgb_out, D);
 			// computeColorFromD1(global_id * 48, d, con_o, texture, tmp, dL_dtext, clamped);
 			// the gradients are needed for every pixel of the Gaussian
 			// computeColorFromD(int idx, const float* textures, dchannel_dcolor * dL_dchannel, glm::vec3* dL_dtext);
@@ -1459,7 +1459,7 @@ renderCUDA(
 			atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG);
 
 			// Update gradients w.r.t. opacity of the Gaussian
-			computeOpacityFromIntersection(global_id, unit_int, G * dL_dalpha, dL_dtext_opacity, clamped, dL_dscale, con_o.w, D);
+			computeOpacityFromIntersection(global_id, unit_int, G * dL_dalpha, dL_dtext_opacity, dL_dscale, con_o.w, D);
 			// atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
 
 		}
@@ -1471,7 +1471,7 @@ void BACKWARD::preprocess(
 	const float3* means3D,
 	const int* radii,
 	const float* shs,
-	const bool* clamped,
+	// const bool* clamped,
 	const glm::vec3* scales,
 	const glm::vec4* rotations,
 	const float scale_modifier,
@@ -1516,7 +1516,7 @@ void BACKWARD::preprocess(
 		(float3*)means3D,
 		radii,
 		shs,
-		clamped,
+		// clamped,
 		(glm::vec3*)scales,
 		(glm::vec4*)rotations,
 		scale_modifier,
@@ -1542,7 +1542,7 @@ void BACKWARD::render(
 	const float* colors,
 	const float* texture,
 	const float* texture_opacity,
-	const float* sig_out,
+	// const float* sig_out,
 	const float* final_Ts,
 	const uint32_t* n_contrib,
 	const float* dL_dpixels,
@@ -1552,7 +1552,7 @@ void BACKWARD::render(
 	float* dL_dcolors,
 	float* dL_dtext,
 	float* dL_dtext_opacity,
-	const bool* clamped,
+	// const bool* clamped,
 	const int D,
 		const float* viewmatrix,
 	const float* projmatrix,
@@ -1573,7 +1573,7 @@ void BACKWARD::render(
 		colors,
 		texture,
 		texture_opacity,
-		sig_out,
+		// sig_out,
 		final_Ts,
 		n_contrib,
 		dL_dpixels,
@@ -1583,7 +1583,7 @@ void BACKWARD::render(
 		dL_dcolors,
 		dL_dtext,
 		dL_dtext_opacity,
-		clamped,
+		// clamped,
 		D,
 		viewmatrix,
 		projmatrix,

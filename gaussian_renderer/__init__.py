@@ -41,6 +41,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         scale_modifier=scaling_modifier,
         viewmatrix=viewpoint_camera.world_view_transform,
         projmatrix=viewpoint_camera.full_proj_transform,
+        projmatrix_inv=viewpoint_camera.full_proj_transform_inv,
         sh_degree=pc.active_sh_degree,
         campos=viewpoint_camera.camera_center,
         prefiltered=False,
@@ -54,11 +55,11 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     opacity = pc.get_opacity
     texture = pc.get_texture
     texture_opacity = pc.get_texture_opacity
-    pixel_count = pc.pixel_count
-    sig_out = pc.sig_out
+    # pixel_count = pc.pixel_count
+    # sig_out = pc.sig_out
 
-    pixel_count.zero_()
-    sig_out.zero_()
+    # pixel_count.zero_()
+    # sig_out.zero_()
 
     # If precomputed 3d covariance is provided, use it. If not, then it will be computed from
     # scaling / rotation by the rasterizer.
@@ -100,9 +101,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         rotations = rotations,
         cov3D_precomp = cov3D_precomp,
         texture = texture,
-        texture_opacity = texture_opacity,
-        pixel_count = pixel_count,
-        sig_out = sig_out)
+        texture_opacity = texture_opacity,)
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.

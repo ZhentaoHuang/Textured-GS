@@ -961,7 +961,6 @@ class GaussianModel:
         # opa = torch.sigmoid(opa)
         prune_mask = (opa < min_opacity).squeeze()
         # prune_mask = torch.zeros(self.get_xyz.shape[0],  dtype=torch.bool)
-        # print("prune_maks:", prune_mask.sum())
         if max_screen_size:
             big_points_vs = self.max_radii2D > max_screen_size
             big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
