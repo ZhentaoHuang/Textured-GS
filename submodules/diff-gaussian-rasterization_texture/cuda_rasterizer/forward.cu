@@ -21,45 +21,44 @@ namespace cg = cooperative_groups;
 
 
 
-
 __device__ float3 getRayVec(float2 pix, int W, int H, const float* viewMatrix, const float* invProj, glm::vec3 campos)
 {
 
 	// Convert pixel coordinates to normalized device coordinates (NDC)
-    float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
-    float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
+	float ndcX = 2.0f * ((pix.x + 1.0f) / W) - 1.0f;
+	float ndcY = 2.0f * ((pix.y + 1.0f) / H) - 1.0f;
 
-    // Define point in clip coordinates (z value chosen for a point in front of the camera)
-    float p_hom_x_r = ndcX * 1.0000001f;
-    float p_hom_y_r = ndcY * 1.0000001f;
-    float p_hom_z_r = (100.0f + 0.01f - 1.0f) / (100.0f - 0.01f);
-    float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
+	// Define point in clip coordinates (z value chosen for a point in front of the camera)
+	float p_hom_x_r = ndcX * 1.0000001f;
+	float p_hom_y_r = ndcY * 1.0000001f;
+	float p_hom_z_r = (100.0f + 0.01f - 1.0f) / (100.0f - 0.01f);
+	float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
 
-    // // Transform to camera space using the inverse projection matrix
-    // float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
-    // float invW = 1.0f / camCoords.w;  // Compute inverse of w once
-    // camCoords = make_float4(camCoords.x * invW, camCoords.y * invW, camCoords.z * invW, 1.0f);
+	// // Transform to camera space using the inverse projection matrix
+	// float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
+	// float invW = 1.0f / camCoords.w;  // Compute inverse of w once
+	// camCoords = make_float4(camCoords.x * invW, camCoords.y * invW, camCoords.z * invW, 1.0f);
 
-    // // Compute the direction vector from the camera position to the point in camera space
-    // float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
+	// // Compute the direction vector from the camera position to the point in camera space
+	// float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
 
-    // // Normalize the direction vector
+	// // Normalize the direction vector
 	// float invNorm = 1.0f / sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
-    // float3 rayDirection = make_float3(realVector.x * invNorm, realVector.y * invNorm, realVector.z * invNorm);
+	// float3 rayDirection = make_float3(realVector.x * invNorm, realVector.y * invNorm, realVector.z * invNorm);
 
 	// Transform to camera space using the inverse projection matrix
-    float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
-    camCoords = make_float4(camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1.0f);
+	float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
+	camCoords = make_float4(camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1.0f);
 
-    // Compute the direction vector from the camera position to the point in camera space
-    float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
+	// Compute the direction vector from the camera position to the point in camera space
+	float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
 
-    // Normalize the direction vector
+	// Normalize the direction vector
 	float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
-    float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
+	float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
 
 
-    return rayDirection;
+	return rayDirection;
 }
 
 
@@ -246,7 +245,7 @@ __device__ glm::vec3 getIntersection3D_1(float3 ray, const glm::vec3 mean, const
 
 	if (discriminant < 0)
 	{
-		intersection = glm::vec3(0.0f,0.0f,0.0f);
+		intersection = glm::vec3(1.0f,1.0f,1.0f);
 	}
 	else
 	{
@@ -291,30 +290,6 @@ __device__ float computeOpacityFromIntersection(int idx, const glm::vec3 unit_in
 	float y = unit_int.y;
 	float z = unit_int.z;
 
-	// float z;
-	// float length_squared = x * x + y * y;
-	// // z = sqrt(1.0f - length_squared);
-	// if (length_squared > 1.0f) {
-	// 	// return glm::vec3{0,0,0};
-	// 	// printf("out: %f, %f, %f\n", length_squared, intersection.x, intersection.y);
-	// 	float length = sqrt(length_squared);
-	// 	x /= length;
-	// 	y /= length;
-	// 	z = 0.0f; // The z-component becomes zero as the vector lies on the xy-plane
-	// } else {
-	// 	z = sqrt(1.0f - length_squared);
-	// }
-	
-	// float length_squared = x * x + y * y + z * z;
-	// if (length_squared >0.0f)
-	// {
-	// 	float length = sqrt(length_squared);
-	// 	x /= length;
-	// 	y /= length;
-	// 	z /= length;
-	// }
-
-
 	int max_coeffs = 16;
 
 	// float sh[16];
@@ -353,11 +328,6 @@ __device__ float computeOpacityFromIntersection(int idx, const glm::vec3 unit_in
 // sh[14] = -0.5f;
 // sh[15] = 0.3f; // Subtle high-degree effects
 
-	// for (int i = 0; i < 16; i++)
-	// {
-	// 	sh[i] = sh[i] * 5.0f;
-	// }
-
 
 	float result = SH_C0 * sh[0];
 	if(deg > 0)
@@ -389,7 +359,7 @@ __device__ float computeOpacityFromIntersection(int idx, const glm::vec3 unit_in
 
 		}
 	}
-	// printf("result: %f, %f,%f,%f,%f\n", result, x, y, z, sh[8]);
+
 	result = 1.0f / (1.0f + glm::exp(-result));
 
 	return result;
@@ -401,43 +371,9 @@ __device__ float computeOpacityFromIntersection(int idx, const glm::vec3 unit_in
 __device__ glm::vec3 computeColorFromD(int idx, const glm::vec3 unit_int, const float* texture, const int deg)
 {
 
-	// float x = intersection.x* intersection.x*(1/(9.0f*((scale.x))*scale.x + 0.0000001f));
-	// float y = intersection.y* intersection.y*(1/(9.0f*((scale.y))*scale.y + 0.0000001f));
-	// float z = intersection.z* intersection.z*(1/(9.0f*((scale.z))*scale.z + 0.0000001f));
-
-	// float x = intersection.x* (1/(4.0f*scale.x + 0.0000001f));
-	// float y = intersection.y* (1/(4.0f*scale.y + 0.0000001f));
-	// float z = intersection.z* (1/(4.0f*scale.z + 0.0000001f));
 	float x = unit_int.x;
 	float y = unit_int.y;
 	float z = unit_int.z;
-
-	// float x = intersection.x* (1/(1*sqrt(scale.x) + 0.0000001f));
-	// float y = intersection.y* (1/(1*sqrt(scale.y) + 0.0000001f));
-	// float z = intersection.z* (1/(1*sqrt(scale.z) + 0.0000001f));
-
-	// float z;
-	// float length_squared = x * x + y * y;
-	// // z = sqrt(1.0f - length_squared);
-	// if (length_squared > 1.0f) {
-	// 	// return glm::vec3{0,0,0};
-	// 	// printf("out: %f, %f, %f\n", length_squared, intersection.x, intersection.y);
-	// 	float length = sqrt(length_squared);
-	// 	x /= length;
-	// 	y /= length;
-	// 	z = 0.0f; // The z-component becomes zero as the vector lies on the xy-plane
-	// } else {
-	// 	z = sqrt(1.0f - length_squared);
-	// }
-	
-	// float length_squared = x * x + y * y + z * z;
-	// if (length_squared >0.0f)
-	// {
-	// 	float length = sqrt(length_squared);
-	// 	x /= length;
-	// 	y /= length;
-	// 	z /= length;
-	// }
 
 	int max_coeffs = 48;
 
@@ -975,6 +911,9 @@ renderCUDA(
 			// float3 ray = {0.5f,0.5f,0.5f};
 			// float3 intersection1 = getIntersection3D_1(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
 			glm::vec3 unit_int = getIntersection3D_1(ray, mean, collected_rotation[j], *cam_pos, collected_scale[j]);
+			if(unit_int == glm::vec3(1.0f, 1.0f, 1.0f))
+				continue;
+
 
 
 			con_o.w = computeOpacityFromIntersection(collected_id[j], unit_int, texture_opacity, degree);

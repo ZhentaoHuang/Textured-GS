@@ -74,6 +74,7 @@ namespace FORWARD
 		const glm::vec3* cam_pos,
 		const glm::vec4* rotations,
 		const glm::vec3* scales);
+
 }
 
 

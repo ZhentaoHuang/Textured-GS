@@ -31,7 +31,8 @@ setup(
                 "nvcc": [
                     "-I" + os.path.join(os.path.dirname(os.path.abspath(__file__)), "third_party/glm/"),
                     "-arch=sm_89",  # Specify the architecture for RTX 4090
-                    "-lineinfo"  # Include line information for debugging
+                    "-lineinfo" # Include line information for debugging
+                    
                 ]}
             )
         ],
