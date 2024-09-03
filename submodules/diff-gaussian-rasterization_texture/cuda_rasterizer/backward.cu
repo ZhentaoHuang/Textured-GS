@@ -148,7 +148,7 @@ __device__ glm::vec3 getIntersection3D_b(float3 ray, const glm::vec3 mean, const
 
 	if (discriminant < 0)
 	{
-		intersection = glm::vec3(1.0f,1.0f,1.0f);
+		intersection = glm::vec3(0.0f,0.0f,0.0f);
 	}
 	else
 	{
@@ -941,6 +941,7 @@ renderCUDA(
 	const int D,
 	const float* viewmatrix,
 	const float* projmatrix,
+	const float* projmatrix_inv,
 	const float3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
@@ -997,9 +998,9 @@ renderCUDA(
 	const float ddely_dy = 0.5 * H;
 
 
- 	glm::mat4 matrix = glm::make_mat4x4(projmatrix);
-    glm::mat4 matrix_temp = glm::inverse(matrix);
-	float *projmatrix_inv= glm::value_ptr(matrix_temp);
+ 	// glm::mat4 matrix = glm::make_mat4x4(projmatrix);
+    // glm::mat4 matrix_temp = glm::inverse(matrix);
+	// float *projmatrix_inv= glm::value_ptr(matrix_temp);
 
 	
 	float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix_inv, *cam_pos);
@@ -1050,8 +1051,8 @@ renderCUDA(
 	
 			glm::vec3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
 			glm::vec3 unit_int = getIntersection3D_b(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
-			if(unit_int == glm::vec3(1.0f, 1.0f, 1.0f))
-				continue;
+			// if(unit_int == glm::vec3(1.0f, 1.0f, 1.0f))
+			// 	continue;
 
 			con_o.w = computeOpacityFromIntersection_f(collected_id[j], unit_int, texture_opacity, D);
 			// if( length_squared == 0)
@@ -1256,6 +1257,7 @@ void BACKWARD::render(
 	const int D,
 		const float* viewmatrix,
 	const float* projmatrix,
+	const float* projmatrix_inv,
 	const float3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
@@ -1287,6 +1289,7 @@ void BACKWARD::render(
 		D,
 		viewmatrix,
 		projmatrix,
+		projmatrix_inv,
 		means3D,
 		cam_pos,
 	rotations,

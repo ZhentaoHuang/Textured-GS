@@ -46,6 +46,7 @@ namespace BACKWARD
 		const int D,
 		const float* viewmatrix,
 	const float* projmatrix,
+	const float* projmatrix_inv,
 	const float3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,

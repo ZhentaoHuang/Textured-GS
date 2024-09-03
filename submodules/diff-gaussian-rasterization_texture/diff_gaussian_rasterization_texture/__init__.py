@@ -137,6 +137,7 @@ class _RasterizeGaussiansTexture(torch.autograd.Function):
                 # sig_out,
                 raster_settings.viewmatrix, 
                 raster_settings.projmatrix, 
+                raster_settings.projmatrix_inv,
                 raster_settings.tanfovx, 
                 raster_settings.tanfovy, 
                 grad_out_color, 
@@ -174,7 +175,7 @@ class _RasterizeGaussiansTexture(torch.autograd.Function):
         # pixel_count.zero_()
         # sig_out.zero_()
 
-        # clamped_grad_text = torch.clamp(grad_text_1, min=-0.05, max=0.05)
+        # clamped_grad_text = torch.clamp(grad_text, min=-0.05, max=0.05)
         # print(grad_text_1)
         grads = (
             grad_means3D,

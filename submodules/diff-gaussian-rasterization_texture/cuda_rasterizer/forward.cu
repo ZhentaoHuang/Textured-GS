@@ -245,7 +245,7 @@ __device__ glm::vec3 getIntersection3D_1(float3 ray, const glm::vec3 mean, const
 
 	if (discriminant < 0)
 	{
-		intersection = glm::vec3(1.0f,1.0f,1.0f);
+		intersection = glm::vec3(0.0f,0.0f,0.0f);
 	}
 	else
 	{
@@ -911,8 +911,8 @@ renderCUDA(
 			// float3 ray = {0.5f,0.5f,0.5f};
 			// float3 intersection1 = getIntersection3D_1(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
 			glm::vec3 unit_int = getIntersection3D_1(ray, mean, collected_rotation[j], *cam_pos, collected_scale[j]);
-			if(unit_int == glm::vec3(1.0f, 1.0f, 1.0f))
-				continue;
+			// if(unit_int == glm::vec3(1.0f, 1.0f, 1.0f))
+			// 	continue;
 
 
 
