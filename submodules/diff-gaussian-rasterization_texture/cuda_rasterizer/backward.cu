@@ -32,84 +32,23 @@ __device__ float3 getRayVec_b(float2 pix, int W, int H, const float* viewMatrix,
 	float p_hom_z_r = (100.0f + 0.01f - 1.0f) / (100.0f - 0.01f);
 	float4 clipCoords = make_float4(p_hom_x_r, p_hom_y_r, p_hom_z_r, 1.0f);
 
-	// // Transform to camera space using the inverse projection matrix
-	// float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
-	// float invW = 1.0f / camCoords.w;  // Compute inverse of w once
-	// camCoords = make_float4(camCoords.x * invW, camCoords.y * invW, camCoords.z * invW, 1.0f);
-
-	// // Compute the direction vector from the camera position to the point in camera space
-	// float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
-
-	// // Normalize the direction vector
-	// float invNorm = 1.0f / sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
-	// float3 rayDirection = make_float3(realVector.x * invNorm, realVector.y * invNorm, realVector.z * invNorm);
-
 	// Transform to camera space using the inverse projection matrix
 	float4 camCoords = transformFloat4_4x4(clipCoords, invProj);
-	camCoords = make_float4(camCoords.x / camCoords.w, camCoords.y / camCoords.w, camCoords.z / camCoords.w, 1.0f);
+	float invW = 1.0f / camCoords.w;  // Compute inverse of w once
+	camCoords = make_float4(camCoords.x * invW, camCoords.y * invW, camCoords.z * invW, 1.0f);
 
 	// Compute the direction vector from the camera position to the point in camera space
 	float3 realVector = make_float3(camCoords.x - campos.x, camCoords.y - campos.y, camCoords.z - campos.z);
 
 	// Normalize the direction vector
-	float norm = sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
-	float3 rayDirection = make_float3(realVector.x / norm, realVector.y / norm, realVector.z / norm);
-
+	float invNorm = 1.0f / sqrt(realVector.x * realVector.x + realVector.y * realVector.y + realVector.z * realVector.z);
+	float3 rayDirection = make_float3(realVector.x * invNorm, realVector.y * invNorm, realVector.z * invNorm);
 
 	return rayDirection;
 }
 
 
 
-
-// __device__ float3 mat3x3_mul_vec3(float R[9], float3 v) {
-//     return make_float3(
-//         R[0] * v.x + R[3] * v.y + R[6] * v.z,
-//         R[1] * v.x + R[4] * v.y + R[7] * v.z,
-//         R[2] * v.x + R[5] * v.y + R[8] * v.z
-//     );
-// }
-
-
-__device__ float3 getIntersection_b(float3 ray, const float3 mean, const glm::vec4 rot, glm::vec3 campos) {
-    float3 o_t = {campos.x - mean.x, campos.y - mean.y, campos.z - mean.z};
-    float r = rot.x;
-    float x = rot.y;
-    float y = rot.z;
-    float z = rot.w;
-    float R[9] = {
-        1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
-        2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
-        2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
-    };
-
-    // Assuming R transforms from local to world, use transpose for world to local
-    // Transpose manually for clarity in this example (not done here, assuming R is already set for world to local)
-    float3 oLocal = transformR_T(o_t, R); // new center in local space
-    float3 dLocal = transformR_T(ray, R); // new direction in local space
-    float zMean = 0;
-
-    if (fabs(dLocal.z) < 1e-6) { // Check if the ray is parallel to the plane
-        if (fabs(oLocal.z - zMean) < 1e-6) {
-            return oLocal; // Ray lies in the plane
-        } else {
-            return make_float3(0, 0, 0); // No intersection
-        }
-    }
-    float t = (zMean - oLocal.z) / dLocal.z; // Solve for t
-    float3 intersection = make_float3(oLocal.x + t * dLocal.x,
-                                      oLocal.y + t * dLocal.y,
-                                      oLocal.z + t * dLocal.z);
-
-	// if(oLocal.z < 0)
-	// {
-	// 	intersection.x = -intersection.x;
-	// 	intersection.y = intersection.y;
-	// 	intersection.z = intersection.z;
-	// }
-
-    return intersection;
-}
 
 
 
@@ -157,14 +96,6 @@ __device__ glm::vec3 getIntersection3D_b(float3 ray, const glm::vec3 mean, const
 		float t1 = (-B + sqrt_discriminant) / (2 * A);
 
 		float t = fminf(t0,t1);
-		// if (t0 < t1)
-		// {
-		// 	t = t0;
-		// }
-		// else
-		// {
-		// 	t = t1;
-		// }
 
 		intersection = glm::vec3(oLocal.x + t * dLocal.x,
                                       oLocal.y + t * dLocal.y,
@@ -173,9 +104,6 @@ __device__ glm::vec3 getIntersection3D_b(float3 ray, const glm::vec3 mean, const
 		intersection = intersection * (1.0f/(sqrt(scale) + 0.0000001f));
 		if (glm::length(intersection) != 0)
 				intersection = intersection / glm::length(intersection);
-		// unit_int.x = intersection.x* (1/(sqrt(collected_scale[j].x) + 0.0000001f));
-		// unit_int.y = intersection.y* (1/(sqrt(collected_scale[j].y) + 0.0000001f));
-		// unit_int.z = intersection.z* (1/(sqrt(collected_scale[j].z) + 0.0000001f));
 	}
 
 	return intersection;
@@ -942,7 +870,7 @@ renderCUDA(
 	const float* viewmatrix,
 	const float* projmatrix,
 	const float* projmatrix_inv,
-	const float3* means3D,
+	const glm::vec3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
 	const glm::vec3* scales,
@@ -969,9 +897,9 @@ renderCUDA(
 	__shared__ int collected_id[BLOCK_SIZE];
 	__shared__ float2 collected_xy[BLOCK_SIZE];
 	__shared__ float4 collected_conic_opacity[BLOCK_SIZE];
-	// __shared__ float collected_colors[C * BLOCK_SIZE];
-	// __shared__ float collected_texture_opa[16 * BLOCK_SIZE];
-	// __shared__ float collected_scales[3 * BLOCK_SIZE];
+	__shared__ glm::vec3 collected_scale[BLOCK_SIZE];
+	__shared__ glm::vec4 collected_rotation[BLOCK_SIZE];
+	__shared__ glm::vec3 collected_mean[BLOCK_SIZE];
 
 	// In the forward, we stored the final value for T, the
 	// product of all (1 - alpha) factors. 
@@ -1020,14 +948,9 @@ renderCUDA(
 			collected_id[block.thread_rank()] = coll_id;
 			collected_xy[block.thread_rank()] = points_xy_image[coll_id];
 			collected_conic_opacity[block.thread_rank()] = conic_opacity[coll_id];
-			// for (int i = 0; i < C; i++)
-			// 	collected_colors[i * BLOCK_SIZE + block.thread_rank()] = colors[coll_id * C + i];
-			// for (int i = 0; i < 16; i++)
-			// 	collected_texture_opa[i * BLOCK_SIZE + block.thread_rank()] = texture_opacity[coll_id * 16 + i]
-			// for (int i = 0; i < 3; i++)
-			// collected_scales[0 * BLOCK_SIZE + block.thread_rank()] = scales[coll_id].x;
-			// collected_scales[1 * BLOCK_SIZE + block.thread_rank()] = scales[coll_id].y;
-			// collected_scales[2 * BLOCK_SIZE + block.thread_rank()] = scales[coll_id].z;
+			collected_scale[block.thread_rank()] = scales[coll_id]; 
+			collected_rotation[block.thread_rank()] = rotations[coll_id]; 
+			collected_mean[block.thread_rank()] = means3D[coll_id];
 			
 		}
 		block.sync();
@@ -1048,13 +971,15 @@ renderCUDA(
 			const float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
 			if (power > 0.0f)
 				continue;
-	
-			glm::vec3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
-			glm::vec3 unit_int = getIntersection3D_b(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
-			// if(unit_int == glm::vec3(1.0f, 1.0f, 1.0f))
-			// 	continue;
 
-			con_o.w = computeOpacityFromIntersection_f(collected_id[j], unit_int, texture_opacity, D);
+			int degree = D;
+			glm::vec3 mean = collected_mean[j];
+			// glm::vec3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
+			glm::vec3 unit_int = getIntersection3D_b(ray, mean, collected_rotation[j], *cam_pos, collected_scale[j]);
+			if(unit_int == glm::vec3(0.0f, 0.0f, 0.0f))
+				degree = 0;
+
+			con_o.w = computeOpacityFromIntersection_f(collected_id[j], unit_int, texture_opacity, degree);
 			// if( length_squared == 0)
 			// 	con_o.w = 0;
 			
@@ -1079,7 +1004,7 @@ renderCUDA(
 			const int global_id = collected_id[j];
 			glm::vec3 tmp;
 
-			glm::vec3 rgb_out = computeColorFromD_f(collected_id[j], unit_int, texture, D);
+			glm::vec3 rgb_out = computeColorFromD_f(collected_id[j], unit_int, texture, degree);
 
 			for (int ch = 0; ch < C; ch++)
 			{
@@ -1129,8 +1054,8 @@ renderCUDA(
 			// float3 mean = { means3D[collected_id[j]].x, means3D[collected_id[j]].y, means3D[collected_id[j]].z };
 			// float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
 			
-			// float3 intersection = getIntersection_b(ray, mean, rotations[collected_id[j]], *cam_pos);
-			computeColorFromD(global_id, unit_int, texture, tmp, dL_dtext, dL_dscale, rgb_out, D);
+
+			computeColorFromD(global_id, unit_int, texture, tmp, dL_dtext, dL_dscale, rgb_out, degree);
 			dL_dalpha *= T;
 			// Update last alpha (to be used in the next iteration)
 			last_alpha = alpha;
@@ -1160,7 +1085,7 @@ renderCUDA(
 			atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG);
 
 			// Update gradients w.r.t. opacity of the Gaussian
-			computeOpacityFromIntersection(global_id, unit_int, G * dL_dalpha, dL_dtext_opacity, dL_dscale, con_o.w, D);
+			computeOpacityFromIntersection(global_id, unit_int, G * dL_dalpha, dL_dtext_opacity, dL_dscale, con_o.w, degree);
 			// atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
 
 		}
@@ -1258,7 +1183,7 @@ void BACKWARD::render(
 		const float* viewmatrix,
 	const float* projmatrix,
 	const float* projmatrix_inv,
-	const float3* means3D,
+	const glm::vec3* means3D,
 	const glm::vec3* cam_pos,
 	const glm::vec4* rotations,
 	const glm::vec3* scales,

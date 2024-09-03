@@ -446,7 +446,7 @@ void CudaRasterizer::Rasterizer::backward(
 		viewmatrix,
 	projmatrix,
 	projmatrix_inv,
-	(float3*)means3D,
+	(glm::vec3*)means3D,
 	(glm::vec3*)campos,
 	(glm::vec4*)rotations,
 	(glm::vec3*)scales,
