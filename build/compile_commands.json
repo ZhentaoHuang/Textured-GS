@@ -1,0 +1,20 @@
+[
+{
+  "directory": "/media/rickyu/4T_B/zhentao/Differentiable-Texture/build",
+  "command": "/usr/local/cuda-11.8/bin/nvcc -forward-unknown-to-host-compiler -I/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer -I/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/third_party/glm -I/usr/local/cuda-11.8/targets/x86_64-linux/include  --maxrregcount=64 -g -std=c++17 \"--generate-code=arch=compute_70,code=[compute_70,sm_70]\" \"--generate-code=arch=compute_75,code=[compute_75,sm_75]\" \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" \"--generate-code=arch=compute_89,code=[compute_89,sm_89]\" -x cu -c /media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer/backward.cu -o CMakeFiles/CudaRasterizer.dir/cuda_rasterizer/backward.cu.o",
+  "file": "/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer/backward.cu",
+  "output": "CMakeFiles/CudaRasterizer.dir/cuda_rasterizer/backward.cu.o"
+},
+{
+  "directory": "/media/rickyu/4T_B/zhentao/Differentiable-Texture/build",
+  "command": "/usr/local/cuda-11.8/bin/nvcc -forward-unknown-to-host-compiler -I/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer -I/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/third_party/glm -I/usr/local/cuda-11.8/targets/x86_64-linux/include  --maxrregcount=64 -g -std=c++17 \"--generate-code=arch=compute_70,code=[compute_70,sm_70]\" \"--generate-code=arch=compute_75,code=[compute_75,sm_75]\" \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" \"--generate-code=arch=compute_89,code=[compute_89,sm_89]\" -x cu -c /media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer/forward.cu -o CMakeFiles/CudaRasterizer.dir/cuda_rasterizer/forward.cu.o",
+  "file": "/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer/forward.cu",
+  "output": "CMakeFiles/CudaRasterizer.dir/cuda_rasterizer/forward.cu.o"
+},
+{
+  "directory": "/media/rickyu/4T_B/zhentao/Differentiable-Texture/build",
+  "command": "/usr/local/cuda-11.8/bin/nvcc -forward-unknown-to-host-compiler -I/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer -I/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/third_party/glm -I/usr/local/cuda-11.8/targets/x86_64-linux/include  --maxrregcount=64 -g -std=c++17 \"--generate-code=arch=compute_70,code=[compute_70,sm_70]\" \"--generate-code=arch=compute_75,code=[compute_75,sm_75]\" \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" \"--generate-code=arch=compute_89,code=[compute_89,sm_89]\" -x cu -c /media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer/rasterizer_impl.cu -o CMakeFiles/CudaRasterizer.dir/cuda_rasterizer/rasterizer_impl.cu.o",
+  "file": "/media/rickyu/4T_B/zhentao/Differentiable-Texture/submodules/diff-gaussian-rasterization_texture/cuda_rasterizer/rasterizer_impl.cu",
+  "output": "CMakeFiles/CudaRasterizer.dir/cuda_rasterizer/rasterizer_impl.cu.o"
+}
+]

@@ -1,0 +1,3 @@
+/media/rickyu/4T_B/zhentao/Differentiable-Texture/build/CMakeFiles/CudaRasterizer.dir
+/media/rickyu/4T_B/zhentao/Differentiable-Texture/build/CMakeFiles/edit_cache.dir
+/media/rickyu/4T_B/zhentao/Differentiable-Texture/build/CMakeFiles/rebuild_cache.dir
