@@ -174,8 +174,7 @@ __device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int
 
 
 	int max_coeffs = 16;
-	// int deg = 1;
-	
+
 	float dL_dRGB = dL_dopacity;
 
 	dL_dRGB *= sig_out * (1 - sig_out);
@@ -184,18 +183,6 @@ __device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int
 	float y = unit_int.y;
 	float z = unit_int.z;
 
-	
-
-	// float sh[16];
-
-	// #pragma unroll
-	// for (int i = 0; i < (deg+1) * (deg+1); i++)
-	// {
-	// 	// sh[i].x = texture[idx*max_coeffs + 3*i];
-	// 	// sh[i].y = texture[idx*max_coeffs + 3*i + 1]; 
-	// 	// sh[i].z = texture[idx*max_coeffs + 3*i + 2];
-	// 	sh[i] = texture_opacity[i];
-	// }
 
 	float dL_dsh[16];
 
@@ -250,22 +237,14 @@ __device__ void computeOpacityFromIntersection(int idx, const glm::vec3 unit_int
 
 	for (int i = 0; i < (deg+1)*(deg+1); i++)
 	{
-
-		// dL_dtext[idx*max_coeffs + 3*i] += dL_dsh[i].x;
-		// dL_dtext[idx*max_coeffs + 3*i + 1] += dL_dsh[i].y;
-		// dL_dtext[idx*max_coeffs + 3*i + 2] += dL_dsh[i].z;
-
 		atomicAdd(&dL_dtext_opacity[idx*max_coeffs + i], dL_dsh[i]);
-		// atomicAdd(&dL_dtext[idx*max_coeffs + 3*i + 1], dL_dsh[i].y);
-		// atomicAdd(&dL_dtext[idx*max_coeffs + 3*i + 2], dL_dsh[i].z);
-
 	}
 }
 
 
 
 
-__device__ glm::vec3 computeColorFromD_f(int idx, const glm::vec3 unit_int, const float* texture, const int deg)
+__device__ glm::vec3 computeColorFromIntersection_f(int idx, const glm::vec3 unit_int, const float* texture, const int deg)
 {
 
 	float x = unit_int.x;
@@ -323,7 +302,7 @@ __device__ glm::vec3 computeColorFromD_f(int idx, const glm::vec3 unit_int, cons
 
 
 
-__device__ void computeColorFromD(int idx, const glm::vec3 unit_int, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, glm::vec3* dL_dscales, const glm::vec3 sig_out, const int deg)
+__device__ void computeColorFromIntersection(int idx, const glm::vec3 unit_int, const float* texture, glm::vec3 dL_dcolor, float* dL_dtext, glm::vec3* dL_dscales, const glm::vec3 sig_out, const int deg)
 {
 
 
@@ -341,17 +320,6 @@ __device__ void computeColorFromD(int idx, const glm::vec3 unit_int, const float
 	float x = unit_int.x;
 	float y = unit_int.y;
 	float z = unit_int.z;
-
-
-	// glm::vec3 sh[16];
-
-	// for (int i = 0; i < (deg+1) * (deg+1); i++)
-	// {
-	// 	sh[i].x = texture[idx*max_coeffs + 3*i];
-	// 	sh[i].y = texture[idx*max_coeffs + 3*i + 1]; 
-	// 	sh[i].z = texture[idx*max_coeffs + 3*i + 2];
-	// }
-
 	glm::vec3 dL_dsh[16];
 
 
@@ -413,48 +381,11 @@ __device__ void computeColorFromD(int idx, const glm::vec3 unit_int, const float
 	for (int i = 0; i < (deg+1)*(deg+1); i++)
 	{
 
-		// dL_dtext[idx*max_coeffs + 3*i] += dL_dsh[i].x;
-		// dL_dtext[idx*max_coeffs + 3*i + 1] += dL_dsh[i].y;
-		// dL_dtext[idx*max_coeffs + 3*i + 2] += dL_dsh[i].z;
-
 		atomicAdd(&dL_dtext[idx*max_coeffs + 3*i], dL_dsh[i].x);
 		atomicAdd(&dL_dtext[idx*max_coeffs + 3*i + 1], dL_dsh[i].y);
 		atomicAdd(&dL_dtext[idx*max_coeffs + 3*i + 2], dL_dsh[i].z);
 
 	}
-
-    // Compute forward values of x, y, z as in the original function
-    // float x = intersection.x * (1/sqrt(scale.x));
-    // float y = intersection.y * (1/sqrt(scale.y));
-    // float length_squared = x * x + y * y;
-    // float z = (length_squared > 1.0f) ? 0.0f : sqrt(1.0f - length_squared);
-
-
-	// + 0.3???
-    // Compute gradients of x, y, z with respect to scale
-    // float dx_dscalex = -0.5 * intersection.x / (scale.x * sqrt(scale.x));
-    // float dy_dscaley = -0.5 * intersection.y / (scale.y * sqrt(scale.y));
-    // float dz_dscalex = (length_squared > 1.0f) ? 0 : -0.5 / sqrt(1.0f - length_squared) * 2 * x * dx_dscalex;
-    // float dz_dscaley = (length_squared > 1.0f) ? 0 : -0.5 / sqrt(1.0f - length_squared) * 2 * y * dy_dscaley;
-
-    // // Compute gradients of the loss with respect to scale
-	// glm::vec3 dLdscale;
-	// // dL_dx = dL_dRGB * dRGB_dx + 
-	// float dL_dx = dL_dRGB.x * dRGBdx.x + dL_dRGB.y * dRGBdx.y + dL_dRGB.z * dRGBdx.z;
-	// float dL_dy = dL_dRGB.x * dRGBdy.x + dL_dRGB.y * dRGBdy.y + dL_dRGB.z * dRGBdy.z;
-	// float dL_dz = dL_dRGB.x * dRGBdz.x + dL_dRGB.y * dRGBdz.y + dL_dRGB.z * dRGBdz.z;
-    // dLdscale.x = dL_dx * dx_dscalex + dL_dz * dz_dscalex;
-    // dLdscale.y = dL_dy * dy_dscaley + dL_dz * dz_dscaley;
-	// dLdscale.z = 0;
-
-
-	// glm::vec3 dL_dscale = dL_dscales[idx];
-	// dL_dscale.x = dL_dx * dx_dscalex + dL_dz * dz_dscalex;
-	// dL_dscale.y = dL_dy * dy_dscaley + dL_dz * dz_dscaley;
-
-	// glm::vec3* dL_dscale = dL_dscales + idx;
-	// printf(":%f, %f %f, %f\n", dL_dscale->x, dL_dx, dx_dscalex, dL_dRGB.x );
-
 
 }
 
@@ -1004,7 +935,7 @@ renderCUDA(
 			const int global_id = collected_id[j];
 			glm::vec3 tmp;
 
-			glm::vec3 rgb_out = computeColorFromD_f(collected_id[j], unit_int, texture, degree);
+			glm::vec3 rgb_out = computeColorFromIntersection_f(collected_id[j], unit_int, texture, degree);
 
 			for (int ch = 0; ch < C; ch++)
 			{
@@ -1055,7 +986,7 @@ renderCUDA(
 			// float3 ray = getRayVec_b(pixf, W, H, viewmatrix, projmatrix, *cam_pos, mean, rotations[collected_id[j]]);
 			
 
-			computeColorFromD(global_id, unit_int, texture, tmp, dL_dtext, dL_dscale, rgb_out, degree);
+			computeColorFromIntersection(global_id, unit_int, texture, tmp, dL_dtext, dL_dscale, rgb_out, degree);
 			dL_dalpha *= T;
 			// Update last alpha (to be used in the next iteration)
 			last_alpha = alpha;

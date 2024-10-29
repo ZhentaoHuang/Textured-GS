@@ -74,24 +74,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # Every 1000 its we increase the levels of SH up to a maximum degree
         if iteration % 1000 == 0:
             gaussians.oneupSHdegree()
-            # print("gaussians size:" ,gaussians.get_xyz.shape)
-            # print( "text: ", gaussians.get_texture)
-            # print( "opa: ", gaussians.get_texture_opacity)
-
-
-        #     # print(gaussians.xyz_scheduler_args)
-        #     for param_group in gaussians.optimizer.param_groups:
-        #         print(f"Epoch {iteration}: Group '{param_group['name']}' Learning Rate: {param_group['lr']}")
-    
-        # if iteration % 7000 == 0:
-            # gaussians.oneupSHdegree()
-
-        # if iteration == 16000 or iteration == 18000 or iteration == 20000:
-        #     gaussians.oneupSHdegree()
-
-        # if iteration == 14000:
-        #     gaussians.oneupSHdegree()
-
 
         # Pick a random Camera
         if not viewpoint_stack:
@@ -273,7 +255,7 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=6009)
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[14_000, 20_000,25_000,30_000])
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[14_000, 30_000])
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[14_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])

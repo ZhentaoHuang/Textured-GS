@@ -52,7 +52,7 @@ __device__ float3 getRayVec(float2 pix, int W, int H, const float* viewMatrix, c
 
 
 
-__device__ glm::vec3 getIntersection3D_1(float3 ray, const glm::vec3 mean, const glm::vec4 rot, glm::vec3 campos, glm::vec3 scale) {
+__device__ glm::vec3 getIntersection3D(float3 ray, const glm::vec3 mean, const glm::vec4 rot, glm::vec3 campos, glm::vec3 scale) {
 
 	glm::vec3 intersection;
 
@@ -123,42 +123,8 @@ __device__ float computeOpacityFromIntersection(int idx, const glm::vec3 unit_in
 
 	int max_coeffs = 16;
 
-	// float sh[16];
+
 	float* sh = ((float*)texture_opacity) + idx * 16;
-	// for (int i = 0; i < (deg+1) * (deg+1); i++)
-	// {
-	// 	// sh[i].x = texture[idx*max_coeffs + 3*i];
-	// 	// sh[i].y = texture[idx*max_coeffs + 3*i + 1]; 
-	// 	// sh[i].z = texture[idx*max_coeffs + 3*i + 2];
-	// 	sh[i] = texture_opacity[idx * max_coeffs + i];
-	// }
-
-
-
-// 	// l = 0, m = 0
-// sh[0] = 0.7f;  // Ambient term, slightly higher to ensure visibility
-
-// // l = 1, m = -1 to 1
-// sh[1] = 2.0f;  // Enhance directional lighting strength
-// sh[2] = -2.0f; // Strong opposite shadows
-// sh[3] = 1.0f;  // Light from another direction
-
-// // l = 2, m = -2 to 2
-// sh[4] = 1.0f;
-// sh[5] = -1.0f;
-// sh[6] = 0.5f;  // Mild vertical illumination
-// sh[7] = -0.5f;
-// sh[8] = 1.0f;  // Strong horizontal contrast
-
-// // l = 3, m = -3 to 3
-// sh[9] = 0.75f;
-// sh[10] = -0.75f;
-// sh[11] = 0.5f;
-// sh[12] = -0.5f;
-// sh[13] = 0.5f;
-// sh[14] = -0.5f;
-// sh[15] = 0.3f; // Subtle high-degree effects
-
 
 	float result = SH_C0 * sh[0];
 	if(deg > 0)
@@ -199,7 +165,7 @@ __device__ float computeOpacityFromIntersection(int idx, const glm::vec3 unit_in
 
 
 
-__device__ glm::vec3 computeColorFromD(int idx, const glm::vec3 unit_int, const float* texture, const int deg)
+__device__ glm::vec3 computeColorFromIntersection(int idx, const glm::vec3 unit_int, const float* texture, const int deg)
 {
 
 	float x = unit_int.x;
@@ -210,84 +176,6 @@ __device__ glm::vec3 computeColorFromD(int idx, const glm::vec3 unit_int, const 
 
 	
 	glm::vec3* sh = ((glm::vec3*)texture) + idx * 16;
-	// glm::vec3 sh[16];
-
-	// for (int i = 0; i < (deg+1) * (deg+1); i++)
-	// {
-	// 	sh[i].x = texture[idx*max_coeffs + 3*i];
-	// 	sh[i].y = texture[idx*max_coeffs + 3*i + 1]; 
-	// 	sh[i].z = texture[idx*max_coeffs + 3*i + 2];
-	// }
-
-
-
-// sh[0].x = 0.42;
-// sh[0].y = -0.23;
-// sh[0].z = 0.88;
-
-// sh[1].x = -0.95;
-// sh[1].y = -0.76;
-// sh[1].z = 0.65;
-
-// sh[2].x = 0.34;
-// sh[2].y = -0.11;
-// sh[2].z = -0.45;
-
-// sh[3].x = 0.29;
-// sh[3].y = 0.68;
-// sh[3].z = -0.74;
-
-// sh[4].x = -0.12;
-// sh[4].y = 0.43;
-// sh[4].z = 0.89;
-
-// sh[5].x = -0.26;
-// sh[5].y = 0.17;
-// sh[5].z = -0.92;
-
-// sh[6].x = 0.57;
-// sh[6].y = -0.82;
-// sh[6].z = 0.05;
-
-// sh[7].x = 0.76;
-// sh[7].y = 0.65;
-// sh[7].z = -0.33;
-
-// sh[8].x = -0.49;
-// sh[8].y = -0.87;
-// sh[8].z = 0.03;
-
-// sh[9].x = 0.95;
-// sh[9].y = -0.29;
-// sh[9].z = -0.15;
-
-// sh[10].x = -0.75;
-// sh[10].y = 0.66;
-// sh[10].z = 0.04;
-
-// sh[11].x = -0.98;
-// sh[11].y = 0.19;
-// sh[11].z = 0.06;
-
-// sh[12].x = -0.31;
-// sh[12].y = 0.95;
-// sh[12].z = 0.23;
-
-// sh[13].x = 0.47;
-// sh[13].y = 0.88;
-// sh[13].z = -0.06;
-
-// sh[14].x = 0.15;
-// sh[14].y = -0.58;
-// sh[14].z = -0.81;
-
-// sh[15].x = -0.21;
-// sh[15].y = -0.74;
-// sh[15].z = 0.63;
-
-
-
-
 
 	glm::vec3 result = SH_C0 * sh[0];
 	if(deg > 0)
@@ -507,17 +395,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	radii[idx] = 0;
 	tiles_touched[idx] = 0;
 
-	// 	printf("Projection Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f], View Matrix: [%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f]\n",
-    //    projmatrix[0], projmatrix[1], projmatrix[2], projmatrix[3],
-    //    projmatrix[4], projmatrix[5], projmatrix[6], projmatrix[7],
-    //    projmatrix[8], projmatrix[9], projmatrix[10], projmatrix[11],
-    //    projmatrix[12], projmatrix[13], projmatrix[14], projmatrix[15],
-    //    viewmatrix[0], viewmatrix[1], viewmatrix[2], viewmatrix[3],
-    //    viewmatrix[4], viewmatrix[5], viewmatrix[6], viewmatrix[7],
-    //    viewmatrix[8], viewmatrix[9], viewmatrix[10], viewmatrix[11],
-    //    viewmatrix[12], viewmatrix[13], viewmatrix[14], viewmatrix[15]);
-
-
 	// Perform near culling, quit if outside.
 	float3 p_view;
 	if (!in_frustum(idx, orig_points, viewmatrix, projmatrix, prefiltered, p_view))
@@ -565,19 +442,6 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	getRect(point_image, my_radius, rect_min, rect_max, grid);
 	if ((rect_max.x - rect_min.x) * (rect_max.y - rect_min.y) == 0)
 		return;
-
-	// If colors have been precomputed, use them, otherwise convert
-	// spherical harmonics coefficients to RGB color.
-	// if (colors_precomp == nullptr)
-	// {
-	// 	glm::vec3 result = computeColorFromSH(idx, D, M, (glm::vec3*)orig_points, *cam_pos, shs, clamped);
-	// 	// result.x = 0;
-	// 	// result.y = 0;
-	// 	// result.z = 0;
-	// 	rgb[idx * C + 0] = result.x;
-	// 	rgb[idx * C + 1] = result.y;
-	// 	rgb[idx * C + 2] = result.z;
-	// }
 
 	// Store some useful helper data for the next steps.
 	depths[idx] = p_view.z;
@@ -676,19 +540,6 @@ renderCUDA(
 			collected_scale[block.thread_rank()] = scales[coll_id]; 
 			collected_rotation[block.thread_rank()] = rotations[coll_id]; 
 			collected_mean[block.thread_rank()] = means3D[coll_id];
-			// for (int k = 0; k < 3; k++)
-			// {
-			// collected_mean[block.thread_rank()].x = means3D[coll_id * 3 + 0];
-			// collected_mean[block.thread_rank()].y = means3D[coll_id * 3 + 1];
-			// collected_mean[block.thread_rank()].z = means3D[coll_id * 3 + 2];
-			// }
-			// for (int k = 0; k < 16; k++)
-			// {
-			// 	collected_texture[k * BLOCK_SIZE + block.thread_rank()].x = texture[coll_id * 48 + 3*k +0];
-			// 	collected_texture[k * BLOCK_SIZE + block.thread_rank()].y = texture[coll_id * 48 + 3*k +1];
-			// 	collected_texture[k * BLOCK_SIZE + block.thread_rank()].z = texture[coll_id * 48 + 3*k +2];
-			// }
-			
 		}
 		block.sync();
 
@@ -709,16 +560,9 @@ renderCUDA(
 				continue;
 
 
-			// glm::vec3 mean = { means3D[3 * collected_id[j]], means3D[3 * collected_id[j] + 1], means3D[3 * collected_id[j] + 2] };
 			glm::vec3 mean = collected_mean[j];
-			// mean = {0.0f, 0.1f, 0.2f};
-			// glm::vec4 rotation = {0.5f, 0.5f, 0.5f, 0.5f};
-
-
-			// float3 ray = {0.5f,0.5f,0.5f};
-			// float3 intersection1 = getIntersection3D_1(ray, mean, rotations[collected_id[j]], *cam_pos, scales[collected_id[j]]);
 			int degree = D;
-			glm::vec3 unit_int = getIntersection3D_1(ray, mean, collected_rotation[j], *cam_pos, collected_scale[j]);
+			glm::vec3 unit_int = getIntersection3D(ray, mean, collected_rotation[j], *cam_pos, collected_scale[j]);
 			if(unit_int == glm::vec3(0.0f, 0.0f, 0.0f))
 				degree = 0;
 
@@ -742,7 +586,7 @@ renderCUDA(
 			}
 
 			
-			glm::vec3 rgb_out = computeColorFromD(collected_id[j], unit_int, texture, degree);
+			glm::vec3 rgb_out = computeColorFromIntersection(collected_id[j], unit_int, texture, degree);
 
 			// Eq. (3) from 3D Gaussian splatting paper.
 			// for (int ch = 0; ch < CHANNELS; ch++)
