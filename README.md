@@ -1,6 +1,8 @@
 # Textured-GS: Gaussian Splatting with Spatially Defined Color and Opacity
 Zhentao Huang, Minglun Gong
 
+<p align="center"> <img src="Textured-GS.png" width="100%"> </p>
+
  [Full Paper](https://arxiv.org/abs/2407.09733)
  [Trained Model](https://drive.google.com/file/d/1at3lJv4-R6PjpAKAk-pjyXdO9_RrxPUp/view?usp=sharing)
 
